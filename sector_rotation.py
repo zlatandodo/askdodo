@@ -484,12 +484,107 @@ def fetch_cot():
 
 
 # ═══════════════════════════════════════════════════════════════
+#  ETF FLOWS (proxy via AUM / NAV da yfinance)
+# ═══════════════════════════════════════════════════════════════
+
+def fetch_etf_flows(tickers: list) -> dict:
+    """Flow settimanale stimato: Δquote_implicite × NAV.
+
+    quote_implicite = totalAssets / navPrice  (da yfinance.Ticker.info)
+    Flow_netto_1W   = (quote_oggi − quote_scorsa_settimana) × NAV_oggi  [in M$]
+    Segnale 4W      = 4 settimane consecutive di flow positivo = accumulo istituzionale.
+
+    Storico salvato in history/flows_cache.json (max 8 snapshot).
+    Prima run: flows N/A per mancanza di storico. Si auto-popola settimana dopo settimana.
+    """
+    import yfinance as yf, json
+    from pathlib import Path
+    print("  ↳ ETF flows (AUM proxy via yfinance)...")
+
+    cache_path = Path('history/flows_cache.json')
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        cache = json.loads(cache_path.read_text()) if cache_path.exists() else {}
+    except Exception:
+        cache = {}
+
+    today    = datetime.now().strftime('%Y-%m-%d')
+    min_days = 5   # gap minimo tra snapshot (evita duplicati infrasettimanali)
+    flows    = {}
+
+    for ticker in tickers:
+        try:
+            info  = yf.Ticker(ticker).info
+            aum   = info.get('totalAssets')
+            nav   = info.get('navPrice') or info.get('regularMarketPrice')
+            if not aum or not nav or nav == 0:
+                continue
+
+            shares_now = aum / nav
+            hist = cache.get(ticker, [])  # lista {date, shares, nav}
+
+            # ── Flow 1W ──────────────────────────────────────────
+            flow_1w = None
+            if hist:
+                last = hist[-1]
+                from datetime import datetime as dt
+                days_diff = (dt.strptime(today, '%Y-%m-%d') -
+                             dt.strptime(last['date'], '%Y-%m-%d')).days
+                if days_diff >= min_days:
+                    flow_1w = round((shares_now - last['shares']) * nav / 1e6, 1)
+
+            # ── Flows storici (per segnale 4W) ───────────────────
+            historical_flows = []
+            for i in range(len(hist) - 1):
+                curr_snap = hist[i + 1]
+                prev_snap = hist[i]
+                delta = (curr_snap['shares'] - prev_snap['shares']) * curr_snap['nav'] / 1e6
+                historical_flows.append(round(delta, 1))
+
+            # Aggiunge il flow corrente alla fine
+            if flow_1w is not None:
+                historical_flows.append(flow_1w)
+
+            last4 = historical_flows[-4:]
+            signal_4w = len(last4) == 4 and all(f > 0 for f in last4)
+
+            flows[ticker] = dict(
+                flow_1w=flow_1w,
+                flows_4w=last4,
+                signal_4w=signal_4w,
+                aum_b=round(aum / 1e9, 2),
+                nav=round(nav, 2),
+            )
+
+            # ── Aggiorna cache ────────────────────────────────────
+            if not hist or hist[-1]['date'] != today:
+                from datetime import datetime as dt
+                if not hist or (dt.strptime(today, '%Y-%m-%d') -
+                                dt.strptime(hist[-1]['date'], '%Y-%m-%d')).days >= min_days:
+                    hist.append({'date': today, 'shares': shares_now, 'nav': nav})
+                    hist = hist[-8:]  # max 8 settimane
+            cache[ticker] = hist
+
+        except Exception as e:
+            print(f"    {ticker} flow fallito: {e}")
+
+    try:
+        cache_path.write_text(json.dumps(cache, indent=2))
+    except Exception as e:
+        print(f"    Cache flows non salvata: {e}")
+
+    return flows
+
+
+# ═══════════════════════════════════════════════════════════════
 #  SCORING
 # ═══════════════════════════════════════════════════════════════
 
-def compute_scores(metrics, breadth, cot):
-    """Composite score 0–5 per settore + bonus COT."""
+def compute_scores(metrics, breadth, cot, etf_flows=None):
+    """Composite score 0–6 per settore (5 criteri tecnici + 1 flow istituzionale)."""
     import math
+    if etf_flows is None:
+        etf_flows = {}
     scores = {}
     for ticker, m in metrics.items():
         pts, details = 0, []
@@ -515,6 +610,14 @@ def compute_scores(metrics, breadth, cot):
         chk(m['rsi_ratio'] > 50, 'RSI Ratio >50',
             str(m['rsi_ratio']))
 
+        # 6° criterio: flows istituzionali 4W positivi
+        fd = etf_flows.get(ticker, {})
+        f1w = fd.get('flow_1w')
+        f4w_ok = fd.get('signal_4w', False)
+        f_val = (f'1W:{f1w:+.0f}M$ · 4W:{"✓" if f4w_ok else "…"}' if f1w is not None
+                 else 'N/A (prima run)')
+        chk(f4w_ok, 'Flows 4W positivi', f_val)
+
         # COT link per settori commodity
         cot_note = None
         if ticker == 'XLE':
@@ -530,9 +633,9 @@ def compute_scores(metrics, breadth, cot):
             if d:
                 cot_note = f"Gold COT: MM Net {d.get('mm_net',0):+,} {d.get('direction','')}"
 
-        sig   = 'FORTE' if pts>=4 else 'MODERATO' if pts==3 else 'DEBOLE' if pts==2 else 'NEGATIVO'
-        color = '#22c55e' if pts>=4 else '#f59e0b' if pts==3 else '#f97316' if pts==2 else '#ef4444'
-        scores[ticker] = dict(score=pts, signal=sig, color=color,
+        sig   = 'FORTE' if pts>=5 else 'MODERATO' if pts==4 else 'DEBOLE' if pts>=2 else 'NEGATIVO'
+        color = '#22c55e' if pts>=5 else '#f59e0b' if pts==4 else '#f97316' if pts>=2 else '#ef4444'
+        scores[ticker] = dict(score=pts, max_score=6, signal=sig, color=color,
                                details=details, cot_note=cot_note)
     return scores
 
@@ -1176,7 +1279,7 @@ def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, ass
               <span class="tk">{ticker}</span>
               <span class="tk-name">{m['name']}</span>
             </div>
-            <div class="score-dot" style="background:{color}">{score}/5</div>
+            <div class="score-dot" style="background:{color}">{score}/6</div>
           </div>
           <div class="sig" style="color:{color}">{signal}</div>
           <div class="m-grid">
@@ -1212,7 +1315,7 @@ def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, ass
         table_rows += f'''<tr>
           <td><b>{ticker}</b></td>
           <td>{m['name']}</td>
-          <td><span class="score-pill" style="background:{color}">{score}/5</span></td>
+          <td><span class="score-pill" style="background:{color}">{score}/6</span></td>
           <td style="color:{color};font-weight:600">{signal}</td>
           {td(m['r1w'])}{td(m['r4w'])}{td(m['r12w'])}
           {td(m['rs4w'])}{td(m['rs12w'])}{td(m['rs26w'])}
@@ -1752,7 +1855,7 @@ tr:hover td{{background:#253047}}
 
     <div class="score-legend">
       <div class="sl-item" style="background:#052e16;border:1px solid #166534">
-        <div class="sl-score" style="color:#22c55e">4–5/5</div>
+        <div class="sl-score" style="color:#22c55e">5–6/6</div>
         <div class="sl-label" style="color:#86efac">FORTE</div>
         <div class="sl-desc" style="color:#4ade80">Setup ottimale. Procedi all'analisi tecnica per il timing di entry.</div>
       </div>
@@ -1767,7 +1870,7 @@ tr:hover td{{background:#253047}}
         <div class="sl-desc" style="color:#fb923c">Segnali prematuri o contraddittori. Non entrare ancora.</div>
       </div>
       <div class="sl-item" style="background:#1c0a0a;border:1px solid #7f1d1d">
-        <div class="sl-score" style="color:#ef4444">0–1/5</div>
+        <div class="sl-score" style="color:#ef4444">0–1/6</div>
         <div class="sl-label" style="color:#fca5a5">NEGATIVO</div>
         <div class="sl-desc" style="color:#f87171">Evita o considera underweight. Potenziale short su breakout ribassista.</div>
       </div>
@@ -1809,7 +1912,7 @@ tr:hover td{{background:#253047}}
 
     <div class="g-box slate">
       <strong>Come usare i cambiamenti di score settimana su settimana:</strong><br>
-      Il segnale più azionabile non è il settore a 5/5 (già in trend) — è il settore che passa da <strong>2→3 o da 3→4</strong>. Quella è la rotation che inizia. Tieni traccia del delta settimanale, non del valore assoluto.
+      Il segnale più azionabile non è il settore a 6/6 (già in trend) — è il settore che passa da <strong>2→3 o da 3→4</strong>. Quella è la rotation che inizia. Tieni traccia del delta settimanale, non del valore assoluto.
     </div>
   </div>
 
@@ -1896,7 +1999,7 @@ tr:hover td{{background:#253047}}
         <div class="wf-left"><div class="wf-num">3</div><div class="wf-line"></div></div>
         <div class="wf-body">
           <div class="wf-title">Leggi i delta di score (Scoring tab)</div>
-          <div class="wf-detail">Quale settore è salito di score rispetto alla settimana scorsa? Il movimento da 2→3 o da 3→4 è il segnale operativo. Un settore già a 5/5 da 3 settimane è in trend, ma l'entry ottimale è già passata.</div>
+          <div class="wf-detail">Quale settore è salito di score rispetto alla settimana scorsa? Il movimento da 2→3 o da 3→4 è il segnale operativo. Un settore già a 6/6 da 3 settimane è in trend, ma l'entry ottimale è già passata.</div>
         </div>
       </div>
       <div class="wf-step">
@@ -1917,7 +2020,7 @@ tr:hover td{{background:#253047}}
         <div class="wf-left"><div class="wf-num">6</div><div class="wf-line"></div></div>
         <div class="wf-body">
           <div class="wf-title">TradingView — setup tecnico (fuori dal dashboard)</div>
-          <div class="wf-detail">Per ogni settore a 4–5/5, apri il chart su TradingView. Cerca: (a) breakout da consolidazione con volume, (b) pullback Fibonacci 38–50% su primo strappo, (c) inverse head & shoulders su base settimanale. Definisci entry, stop e target <strong style="color:#e2e8f0">prima</strong> di comprare.</div>
+          <div class="wf-detail">Per ogni settore a 5–6/6, apri il chart su TradingView. Cerca: (a) breakout da consolidazione con volume, (b) pullback Fibonacci 38–50% su primo strappo, (c) inverse head & shoulders su base settimanale. Definisci entry, stop e target <strong style="color:#e2e8f0">prima</strong> di comprare.</div>
         </div>
       </div>
     </div>
@@ -1930,7 +2033,7 @@ tr:hover td{{background:#253047}}
       <div class="entry-card" style="border-top:3px solid #22c55e">
         <h4 style="color:#22c55e">✅ Entra quando:</h4>
         <ul>
-          <li>Score ≥ 4/5 questa settimana</li>
+          <li>Score ≥ 5/6 questa settimana</li>
           <li>Regime macro favorisce il settore</li>
           <li>COT non contraddice (MM Net non in calo)</li>
           <li>Setup tecnico pulito (breakout o pullback) su TradingView</li>
@@ -1940,7 +2043,7 @@ tr:hover td{{background:#253047}}
       <div class="entry-card" style="border-top:3px solid #ef4444">
         <h4 style="color:#ef4444">❌ Non entrare quando:</h4>
         <ul>
-          <li>Score ≥ 4/5 ma regime macro avverso</li>
+          <li>Score ≥ 5/6 ma regime macro avverso</li>
           <li>RS 4W positiva ma RS 12W fortemente negativa</li>
           <li>Breadth < 30% (movimento concentrato su poche large cap)</li>
           <li>COT in forte calo (distribuzione istituzionale)</li>
@@ -1963,12 +2066,12 @@ tr:hover td{{background:#253047}}
           <li>Target: <strong style="color:#e2e8f0">3–9 mesi</strong> per catturare la rotation completa</li>
           <li>Non uscire alla prima correzione del 5–8% — normale in un trend di settore</li>
           <li>Trailing stop: dopo +15% porta lo stop a breakeven + 50% del gain</li>
-          <li>Segnale di uscita: score scende sotto 2/5 per 2 settimane consecutive</li>
+          <li>Segnale di uscita: score scende sotto 2/6 per 2 settimane consecutive</li>
         </ul>
       </div>
     </div>
     <div class="g-box amber">
-      <strong>Bias comportamentale da evitare:</strong> non entrare su un settore già a 5/5 da 6 settimane solo perché il dashboard lo mostra verde. L'opportunità è all'alba del trend (3→4), non a metà. Un settore già esploso ha il rischio/rendimento peggiore.
+      <strong>Bias comportamentale da evitare:</strong> non entrare su un settore già a 6/6 da 6 settimane solo perché il dashboard lo mostra verde. L'opportunità è all'alba del trend (3→4), non a metà. Un settore già esploso ha il rischio/rendimento peggiore.
     </div>
   </div>
 
@@ -2019,7 +2122,7 @@ tr:hover td{{background:#253047}}
     <h3>⚠️ 10. Errori Comuni da Evitare</h3>
     <div class="g-box red">
       <strong>1. Usare solo lo score ignorando il regime macro.</strong><br>
-      Un settore a 5/5 nel regime sbagliato è un segnale falso. Energy a 5/5 in piena recessione con HY spread al 7% è un rimbalzo nel downtrend, non una rotation.
+      Un settore a 6/6 nel regime sbagliato è un segnale falso. Energy a 6/6 in piena recessione con HY spread al 7% è un rimbalzo nel downtrend, non una rotation.
     </div>
     <div class="g-box red">
       <strong>2. Confondere ritorno assoluto con relative strength.</strong><br>
@@ -2031,7 +2134,7 @@ tr:hover td{{background:#253047}}
     </div>
     <div class="g-box red">
       <strong>4. Inseguire il settore già in trend da mesi.</strong><br>
-      Se un settore è a 5/5 da 8 settimane, il grosso del movimento è già prezzato. La rotation del denaro istituzionale avviene nelle prime 4–8 settimane. Dopo, stai comprando da chi sta già vendendo.
+      Se un settore è a 6/6 da 8 settimane, il grosso del movimento è già prezzato. La rotation del denaro istituzionale avviene nelle prime 4–8 settimane. Dopo, stai comprando da chi sta già vendendo.
     </div>
     <div class="g-box amber">
       <strong>Regola finale:</strong> il dashboard identifica il <em>cosa</em> e il <em>quando in termini di settimane</em>. Il timing preciso dell'entry (al giorno) richiede il setup tecnico su TradingView. Non sostituire uno con l'altro.
@@ -2194,16 +2297,16 @@ def send_email(scores, metrics, macro, quadrant, cruscotto, dashboard_url):
           <td style="padding:10px 14px;font-weight:700;color:#f1f5f9">{ticker}</td>
           <td style="padding:10px 14px;color:#94a3b8">{name}</td>
           <td style="padding:10px 14px;text-align:center">
-            <span style="background:{color};color:white;padding:3px 10px;border-radius:12px;font-weight:700;font-size:13px">{score}/5</span>
+            <span style="background:{color};color:white;padding:3px 10px;border-radius:12px;font-weight:700;font-size:13px">{score}/6</span>
           </td>
           <td style="padding:10px 14px;color:{color};font-weight:700;font-size:12px;letter-spacing:.5px">{signal}</td>
           <td style="padding:10px 14px;color:{rs4w_c};font-weight:600;text-align:right">{rs4w_s}</td>
         </tr>'''
 
     # Top picks callout
-    top_picks = [t for t,sc in sorted_s if sc['score'] >= 4]
+    top_picks = [t for t,sc in sorted_s if sc['score'] >= 5]
     top_html  = ' '.join(f'<span style="background:#1d4ed8;color:#bfdbfe;padding:4px 12px;border-radius:20px;font-weight:700;margin:3px;display:inline-block">{t}</span>' for t in top_picks) \
-                if top_picks else '<span style="color:#64748b">Nessun settore a 4/5 questa settimana</span>'
+                if top_picks else '<span style="color:#64748b">Nessun settore a 5/6 questa settimana</span>'
 
     html_body = f'''<!DOCTYPE html>
 <html>
@@ -2243,7 +2346,7 @@ def send_email(scores, metrics, macro, quadrant, cruscotto, dashboard_url):
 
   <!-- Top Picks -->
   <div style="background:#0f2744;border:1px solid #1e3a5f;border-radius:12px;padding:18px 24px;margin-bottom:16px">
-    <div style="font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:700">⭐ Settori con Score ≥ 4/5</div>
+    <div style="font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:700">⭐ Settori con Score ≥ 5/6</div>
     <div>{top_html}</div>
   </div>
 
@@ -2319,15 +2422,16 @@ def main():
 
     prices  = fetch_sector_prices()
     print("  ↳ Computing metrics...")
-    metrics = calc_metrics(prices)
-    breadth = calc_breadth(prices)
-    macro   = fetch_macro()
-    assets  = fetch_extra_assets()
-    naaim   = fetch_naaim()
-    cot     = fetch_cot()
+    metrics   = calc_metrics(prices)
+    breadth   = calc_breadth(prices)
+    macro     = fetch_macro()
+    assets    = fetch_extra_assets()
+    naaim     = fetch_naaim()
+    cot       = fetch_cot()
+    etf_flows = fetch_etf_flows(list(SECTORS.keys()))
 
     print("  ↳ Scoring settori...")
-    scores    = compute_scores(metrics, breadth, cot)
+    scores    = compute_scores(metrics, breadth, cot, etf_flows)
     quadrant  = detect_quadrant(macro)
     cruscotto = compute_cruscotto(macro, assets, cot, naaim)
 
@@ -2350,10 +2454,13 @@ def main():
     for t, sc in sorted(scores.items(), key=lambda x: x[1]['score'], reverse=True):
         m     = metrics.get(t,{})
         score = sc['score']
-        bars  = '█'*score + '░'*(5-score)
+        bars  = '█'*score + '░'*(6-score)
         rs    = m.get('rs4w', float('nan'))
         rs_s  = f"RS4W: {'+'if rs>=0 else ''}{rs}%" if not math.isnan(rs) else "RS4W: —"
-        print(f"  {t:5}  [{bars}] {score}/5  {sc['signal']:10}  {rs_s}")
+        fd    = etf_flows.get(t, {})
+        f1w   = fd.get('flow_1w')
+        f_s   = f"Flow: {f1w:+.0f}M$" if f1w is not None else "Flow: N/A"
+        print(f"  {t:5}  [{bars}] {score}/6  {sc['signal']:10}  {rs_s}  {f_s}")
 
     if cot:
         print(f"\n  COT — MANAGED MONEY NET (Multi-Asset)")
