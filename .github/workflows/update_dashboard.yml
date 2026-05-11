@@ -2,8 +2,8 @@ name: Weekly Sector Rotation Dashboard
 
 on:
   schedule:
-    # Ogni domenica alle 20:00 UTC (22:00 ora italiana)
-    - cron: '0 20 * * 0'
+    # Ogni sabato alle 06:00 UTC (08:00 ora italiana estate / 07:00 inverno)
+    - cron: '0 6 * * 6'
   workflow_dispatch:
     # Permette avvio manuale da GitHub Actions
 
