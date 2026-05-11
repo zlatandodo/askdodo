@@ -60,6 +60,8 @@ EXTRA_ASSETS = {
     'DXY':       'DX-Y.NYB',  # Dollar Index
     'MOVE':      '^MOVE',     # Volatility bonds
     'VIX':       '^VIX',      # Volatility S&P (anche su FRED)
+    'SKEW':      '^SKEW',     # CBOE SKEW: domanda istituzionale di put OTM
+    'VVIX':      '^VVIX',     # VIX del VIX: incertezza sull'incertezza
     'COPPER':    'HG=F',      # Copper futures
     'GOLD':      'GC=F',      # Gold futures
     'SILVER':    'SI=F',      # Silver futures
@@ -332,6 +334,53 @@ def fetch_extra_assets():
                 values=ratio_vals[-130:],
             )
     return assets
+
+
+def fetch_naaim():
+    """NAAIM Exposure Index — scarica xlsx dalla pagina NAAIM (aggiornato ogni mercoledì).
+
+    Soglie operative:
+      > 90  = gestori all-in → rischio di top distributivo (🔴)
+      60-90 = posizionamento normale-rialzista (🟡)
+      40-60 = neutrale (🟢)
+      < 40  = capitolazione → opportunità contrarian (🟢 forte)
+    """
+    import requests, io
+    from bs4 import BeautifulSoup
+    print("  ↳ NAAIM Exposure Index...")
+    try:
+        page = requests.get(
+            'https://www.naaim.org/programs/naaim-exposure-index/',
+            headers={'User-Agent': 'Mozilla/5.0'}, timeout=15)
+        soup = BeautifulSoup(page.text, 'html.parser')
+        xlsx_url = next(
+            (a['href'] for a in soup.find_all('a', href=True)
+             if 'xlsx' in a['href'].lower()),
+            None)
+        if not xlsx_url:
+            print("    NAAIM: link xlsx non trovato nella pagina")
+            return None
+
+        import pandas as pd
+        r = requests.get(xlsx_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
+        df = pd.read_excel(io.BytesIO(r.content), engine='openpyxl')
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+        df = df.dropna(subset=['Date']).sort_values('Date')
+
+        current  = round(float(df['NAAIM Number'].iloc[-1]), 1)
+        prev_w   = round(float(df['NAAIM Number'].iloc[-2]), 1) if len(df) >= 2 else current
+        date_str = df['Date'].iloc[-1].strftime('%Y-%m-%d')
+        history  = [
+            dict(date=row['Date'].strftime('%Y-%m-%d'),
+                 value=round(float(row['NAAIM Number']), 1))
+            for _, row in df.tail(26).iterrows()
+        ]
+        return dict(current=current, prev=prev_w,
+                    change=round(current - prev_w, 1),
+                    date=date_str, history=history)
+    except Exception as e:
+        print(f"    NAAIM fallito: {e}")
+        return None
 
 
 def fetch_cot():
@@ -657,7 +706,7 @@ def _fallback_quadrant(macro):
 #  CRUSCOTTO DI CONTROLLO — Traffic Light Synthesis
 # ═══════════════════════════════════════════════════════════════
 
-def compute_cruscotto(macro, assets, cot):
+def compute_cruscotto(macro, assets, cot, naaim=None):
     """Sintesi semaforo basata sul cruscotto di controllo.
 
     Verifica le condizioni dei tre scenari:
@@ -793,25 +842,49 @@ def compute_cruscotto(macro, assets, cot):
             threshold='< 18 verde · 18-28 giallo · > 28 rosso'
         ))
 
-    # ── 8. COT S&P 500 (sentiment hedge fund) ───────────────────
-    sp_cot = cot.get('S&P 500')
-    if sp_cot:
-        net = sp_cot['mm_net']
-        change = sp_cot['change']
-        if net > 0 and change > 0:
-            ind_status = 'VERDE'; ind_msg = f'Hedge fund long & accumulating ({net:+,})'
-        elif net > 0:
-            ind_status = 'GIALLO'; ind_msg = f'Hedge fund long ma in distribuzione'
-        elif net < 0 and change > 0:
-            ind_status = 'GIALLO'; ind_msg = f'Hedge fund short ma covering = potenziale squeeze rialzista'
+    # ── 8. NAAIM Exposure Index ──────────────────────────────────
+    if naaim:
+        nv = naaim['current']
+        nc = naaim['change']
+        if nv > 90:
+            ind_status = 'ROSSO'
+            ind_msg = f'Gestori all-in ({nv}) → rischio di top distributivo, posizionamento estremo'
+        elif nv > 75:
+            ind_status = 'GIALLO'
+            ind_msg = f'Gestori molto rialzisti ({nv}) → euforia crescente'
+        elif nv < 40:
+            ind_status = 'VERDE'
+            ind_msg = f'Capitolazione ({nv}) → opportunità contrarian, gestori in fuga'
         else:
-            ind_status = 'ROSSO'; ind_msg = f'Hedge fund pesantemente short ({net:+,})'
+            ind_status = 'VERDE'
+            ind_msg = f'Posizionamento normale ({nv})'
         indicators.append(dict(
-            name='COT S&P 500 (Managed Money)',
-            ticker='CFTC:13874+',
-            status=ind_status, value=f'{net:+,}',
-            message=ind_msg + f' WoW: {change:+,}',
-            threshold='trend del net + direzione = sentiment'
+            name='NAAIM Exposure Index',
+            ticker='naaim.org',
+            status=ind_status, value=f'{nv}',
+            message=ind_msg + f' (WoW: {"+" if nc>=0 else ""}{nc})',
+            threshold='> 90 rosso · 75-90 giallo · < 40 verde (capitolazione)'
+        ))
+
+    # ── 9. SKEW Index (domanda istituzionale di protezione) ──────
+    if 'SKEW' in assets:
+        sk = assets['SKEW']['current']
+        sk_1m = assets['SKEW']['ret_1m']
+        if sk > 145:
+            ind_status = 'ROSSO'
+            ind_msg = f'Istituzioni in forte acquisto di puts OTM — tail risk percepito alto'
+        elif sk > 130:
+            ind_status = 'GIALLO'
+            ind_msg = f'Protezione istituzionale elevata — mercato nervoso'
+        else:
+            ind_status = 'VERDE'
+            ind_msg = f'Skew basso — scarsa domanda di protezione, euforia o compiacenza'
+        indicators.append(dict(
+            name='CBOE SKEW Index',
+            ticker='^SKEW',
+            status=ind_status, value=f'{sk:.0f}',
+            message=ind_msg + f' (1M: {"+" if sk_1m>=0 else ""}{sk_1m}%)',
+            threshold='< 130 verde · 130-145 giallo · > 145 rosso'
         ))
 
     # ── Aggregato semaforo finale ───────────────────────────────
@@ -863,7 +936,7 @@ def _nan_safe(v, decimals=2):
     try: return round(float(v), decimals)
     except: return None
 
-def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, assets):
+def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, assets, naaim=None):
     import math
 
     updated = datetime.now().strftime('%d %B %Y — %H:%M')
@@ -1017,6 +1090,40 @@ def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, ass
           <div class="asset-rets">
             <span style="color:{'#22c55e' if r1m>=0 else '#ef4444'}">1M: {'+' if r1m>=0 else ''}{r1m}%</span>
             <span style="color:{'#22c55e' if r3m>=0 else '#ef4444'}">3M: {'+' if r3m>=0 else ''}{r3m}%</span>
+          </div>
+        </div>'''
+
+    # ── NAAIM gauge HTML ─────────────────────────────────────────
+    naaim_html = ''
+    if naaim:
+        nv = naaim['current']
+        nc = naaim['change']
+        nd = naaim['date']
+        naaim_color = '#ef4444' if nv > 90 else '#f59e0b' if nv > 75 else '#22c55e' if nv < 40 else '#22c55e'
+        naaim_label = 'ALL-IN ⚠️' if nv > 90 else 'RIALZISTA' if nv > 75 else 'CAPITOLAZIONE 🎯' if nv < 40 else 'NEUTRALE'
+        bar_pct = min(100, max(0, nv))  # NAAIM 0-200 ma in pratica 0-100+
+        bar_color = naaim_color
+        naaim_html = f'''
+        <div class="naaim-box">
+          <div class="naaim-hdr">
+            <span>NAAIM Exposure Index</span>
+            <span style="color:#64748b;font-size:11px">aggiornato {nd}</span>
+          </div>
+          <div class="naaim-gauge">
+            <div class="naaim-bar-bg">
+              <div class="naaim-bar-fill" style="width:{min(bar_pct,100)}%;background:{bar_color}"></div>
+              <div class="naaim-mark" style="left:40%"><span>40</span></div>
+              <div class="naaim-mark" style="left:75%"><span>75</span></div>
+              <div class="naaim-mark" style="left:90%"><span>90</span></div>
+            </div>
+          </div>
+          <div class="naaim-vals">
+            <span class="naaim-num" style="color:{naaim_color}">{nv}</span>
+            <span class="naaim-sig" style="color:{naaim_color}">{naaim_label}</span>
+            <span class="naaim-wow" style="color:{'#22c55e' if nc>=0 else '#ef4444'}">WoW: {"+" if nc>=0 else ""}{nc}</span>
+          </div>
+          <div style="font-size:11px;color:#64748b;margin-top:6px">
+            Soglie: &lt;40 capitolazione (opportunità) · &gt;90 all-in (rischio top)
           </div>
         </div>'''
 
@@ -1304,6 +1411,16 @@ tr:hover td{{background:#253047}}
   .m-grid{{grid-template-columns:repeat(2,1fr)}}
   .tabs{{overflow-x:auto;width:100%}}
 }}
+.naaim-box{{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px 20px;margin-bottom:20px}}
+.naaim-hdr{{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}}
+.naaim-gauge{{margin:8px 0 10px}}
+.naaim-bar-bg{{position:relative;height:10px;background:#0f172a;border-radius:5px;overflow:visible}}
+.naaim-bar-fill{{height:100%;border-radius:5px;transition:width .3s}}
+.naaim-mark{{position:absolute;top:12px;font-size:9px;color:#475569;transform:translateX(-50%)}}
+.naaim-vals{{display:flex;align-items:center;gap:16px;margin-top:14px}}
+.naaim-num{{font-size:28px;font-weight:900}}
+.naaim-sig{{font-size:13px;font-weight:700}}
+.naaim-wow{{font-size:12px;margin-left:auto}}
 </style>
 </head>
 <body>
@@ -1365,6 +1482,9 @@ tr:hover td{{background:#253047}}
 
 <!-- ASSET WATCH (NEW) -->
 {'<div class="section-header">🌐 Asset Watch — Indicatori Cross-Asset</div><div class="asset-bar">' + asset_items_html + '</div>' if asset_items_html else ''}
+
+<!-- NAAIM -->
+{naaim_html}
 
 <!-- TABS -->
 <div class="tabs">
@@ -2203,12 +2323,13 @@ def main():
     breadth = calc_breadth(prices)
     macro   = fetch_macro()
     assets  = fetch_extra_assets()
+    naaim   = fetch_naaim()
     cot     = fetch_cot()
 
     print("  ↳ Scoring settori...")
     scores    = compute_scores(metrics, breadth, cot)
     quadrant  = detect_quadrant(macro)
-    cruscotto = compute_cruscotto(macro, assets, cot)
+    cruscotto = compute_cruscotto(macro, assets, cot, naaim)
 
     # Print summary
     print(f"\n{'─'*54}")
@@ -2241,7 +2362,7 @@ def main():
 
     # Generate & save HTML
     print(f"\n🖥️  Generando dashboard HTML...")
-    html = generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, assets)
+    html = generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, assets, naaim)
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
