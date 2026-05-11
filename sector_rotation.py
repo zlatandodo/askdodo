@@ -1734,6 +1734,26 @@ tr:hover td{{background:#253047}}
   </div>
 </div>
 
+<!-- LEGENDA DUE LIVELLI -->
+<div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:10px;padding:14px 20px;margin-bottom:16px;display:flex;gap:24px;flex-wrap:wrap;font-size:12px;line-height:1.6">
+  <div style="flex:1;min-width:220px">
+    <span style="color:#f59e0b;font-weight:700">🚦 CRUSCOTTO = SENTIMENT DI MERCATO (breve termine)</span><br>
+    <span style="color:#64748b">Misura 8 indicatori di rischio: VIX, HY spreads, NAAIM, SKEW, yield curve, DXY, MOVE, Copper/Gold.
+    Risponde in settimane. Dice quanto è sicuro stare esposti adesso.</span>
+  </div>
+  <div style="flex:1;min-width:220px">
+    <span style="color:{q_color};font-weight:700">🌍 QUADRANTE = CICLO MACRO (medio termine)</span><br>
+    <span style="color:#64748b">Misura crescita (IP, LEI, Chicago Fed) e inflazione (CPI, PCE).
+    Cambia in mesi. Dice quali asset sono strutturalmente favoriti nei prossimi 3–9 mesi.</span>
+  </div>
+  <div style="flex:1;min-width:220px;border-left:2px solid #1e3a5f;padding-left:20px">
+    <span style="color:#94a3b8;font-weight:700">⚡ POSSONO DIVERGERE — è normale</span><br>
+    <span style="color:#64748b">Cruscotto GIALLO + Quadrante STAGFLAZIONE significa:
+    il macro è deteriorato ma i mercati non prezzano ancora il rischio pieno.
+    Situazione da monitorare, non da ignorare.</span>
+  </div>
+</div>
+
 <!-- MACRO BAR -->
 <div class="macro-bar">{macro_items_html}</div>
 
@@ -2335,7 +2355,7 @@ tr:hover td{{background:#253047}}
 
 <script>
 // ── TABS ─────────────────────────────────────────────────────
-const TABS = ['cruscotto','scoring','charts','table','cot','guide'];
+const TABS = ['cruscotto','scoring','charts','table','cot','tematici','guide'];
 function goTab(name) {{
   TABS.forEach(id => {{
     document.querySelectorAll('.tab')[TABS.indexOf(id)].classList.toggle('active', id===name);
