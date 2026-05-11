@@ -1,1 +1,1379 @@
-placeholder — questo file viene sovrascritto dallo script
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sector Rotation Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+
+/* HEADER */
+.hdr{background:linear-gradient(135deg,#1e293b,#0f172a);border-bottom:1px solid #334155;padding:18px 32px;display:flex;justify-content:space-between;align-items:center}
+.hdr h1{font-size:21px;font-weight:800;letter-spacing:-0.5px}
+.hdr h1 span{color:#3b82f6}
+.hdr .upd{color:#475569;font-size:13px}
+
+/* CONTAINER */
+.wrap{max-width:1700px;margin:0 auto;padding:24px 28px}
+
+/* REGIME */
+.regime{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px 24px;margin-bottom:20px}
+.regime-q{font-size:20px;font-weight:700;margin-bottom:6px}
+.regime-d{color:#94a3b8;font-size:14px;margin-bottom:10px}
+.tag{display:inline-block;padding:3px 11px;border-radius:20px;font-size:12px;font-weight:600;margin:2px}
+.tag.green{background:#14532d;color:#86efac}
+.tag.red{background:#450a0a;color:#fca5a5}
+.tag.orange{background:#431407;color:#fed7aa}
+
+/* CRUSCOTTO BANNER */
+.crusc-banner{background:#1e293b;border-radius:14px;padding:24px;margin-bottom:20px;display:flex;gap:24px;align-items:center}
+.crusc-light{width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .3s}
+.crusc-overall{font-size:24px;font-weight:900;color:#000;letter-spacing:1px}
+.crusc-body{flex:1}
+.crusc-scenario{font-size:18px;font-weight:800;margin-bottom:8px;letter-spacing:.5px}
+.crusc-action{color:#cbd5e1;font-size:14px;line-height:1.7;margin-bottom:10px}
+.crusc-counts{display:flex;gap:16px;font-size:13px;font-weight:600;align-items:center}
+
+/* CRUSCOTTO TABLE (in tab) */
+.cruscotto-detail{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px}
+.crusc-table{display:flex;flex-direction:column;gap:10px}
+.crusc-row{display:grid;grid-template-columns:14px 1.6fr 1fr 2fr;gap:14px;padding:12px;background:#0f172a;border-radius:8px;align-items:center}
+.crusc-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+.crusc-name{color:#e2e8f0;font-weight:600;font-size:13px;display:flex;flex-direction:column}
+.crusc-tk{color:#475569;font-size:10px;font-family:monospace;margin-top:2px}
+.crusc-val{font-size:18px;font-family:monospace;text-align:right}
+.crusc-msg{color:#94a3b8;font-size:12px;line-height:1.5}
+
+/* QUADRANT BANNER */
+.quadrant-banner{background:#1e293b;border-radius:12px;padding:22px 26px;margin-bottom:20px}
+.q-header{display:flex;align-items:center;gap:18px;margin-bottom:12px}
+.q-id{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#000;flex-shrink:0}
+.q-name{font-size:20px;font-weight:800;letter-spacing:.5px}
+.q-axes{color:#94a3b8;font-size:13px;margin-top:2px}
+.q-desc{color:#cbd5e1;font-size:14px;line-height:1.7;margin-bottom:14px}
+.q-action{background:#0f2744;border-left:3px solid #3b82f6;padding:10px 14px;color:#bfdbfe;font-size:13px;line-height:1.6;margin-bottom:16px;border-radius:6px}
+.q-winners-section{margin-bottom:14px}
+.q-section-name{color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:6px}
+.q-cat{margin-bottom:6px}
+.q-cat-name{display:inline-block;color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-right:8px;width:90px}
+.q-tag{display:inline-block;padding:3px 10px;border-radius:14px;font-size:12px;font-weight:600;margin:2px}
+.q-tag.green{background:#14532d;color:#86efac}
+.q-tag.red{background:#450a0a;color:#fca5a5}
+.q-sectors{padding-top:14px;border-top:1px solid #334155;font-size:13px;line-height:2}
+
+/* ASSET WATCH */
+.section-header{color:#475569;font-size:12px;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin:24px 0 10px}
+.asset-bar{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:20px}
+.asset-item{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 14px}
+.asset-lbl{color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.asset-val{font-size:20px;font-weight:800;font-family:monospace}
+.asset-rets{display:flex;gap:10px;font-size:11px;font-weight:600;margin-top:4px}
+
+/* MACRO BAR */
+.macro-bar{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:20px}
+.macro-item{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:14px 18px}
+.macro-lbl{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.macro-val{font-size:26px;font-weight:800}
+.macro-status{color:#64748b;font-size:12px;margin-top:2px}
+.arrow{font-size:14px}
+.no-fred{color:#64748b;grid-column:1/-1;padding:16px;font-size:14px;line-height:1.7}
+.no-fred a{color:#3b82f6}
+
+/* TABS */
+.tabs{display:flex;gap:2px;margin-bottom:20px;background:#1e293b;border-radius:8px;padding:4px;width:fit-content}
+.tab{padding:8px 22px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;color:#64748b;user-select:none;transition:all .15s}
+.tab:hover{color:#e2e8f0}
+.tab.active{background:#3b82f6;color:#fff;font-weight:700}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* CARDS */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;transition:transform .15s}
+.card:hover{transform:translateY(-2px)}
+.card-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.tk{font-size:21px;font-weight:800;margin-right:6px}
+.tk-name{color:#64748b;font-size:12px}
+.score-dot{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0}
+.sig{font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px}
+.m-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.m-cell{text-align:center}
+.m-lbl{color:#475569;font-size:9px;text-transform:uppercase;letter-spacing:.3px}
+.m-val{font-size:15px;font-weight:700}
+.det-sect{border-top:1px solid #334155;padding-top:8px}
+.det-row{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:12px}
+.chk.ok{color:#22c55e;font-size:13px;width:14px}
+.chk.no{color:#ef4444;font-size:13px;width:14px}
+.det-lbl{color:#94a3b8;flex:1}
+.det-val{color:#64748b;font-size:11px}
+.cot-tag{margin-top:8px;font-size:11px;color:#60a5fa;background:#172554;padding:5px 10px;border-radius:6px}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#0f172a;color:#475569;padding:10px 12px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #334155;white-space:nowrap}
+th:nth-child(1),th:nth-child(2){text-align:left}
+td{padding:9px 12px;text-align:right;border-bottom:1px solid #1a2744;white-space:nowrap}
+td:nth-child(1),td:nth-child(2){text-align:left}
+tr:hover td{background:#253047}
+.score-pill{padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;color:#fff}
+
+/* COT */
+.cot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.cot-card{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:16px}
+.cot-name{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.cot-net{font-size:24px;font-weight:800;margin-bottom:2px}
+.cot-chg{font-size:14px;font-weight:600;margin-bottom:2px}
+.cot-sent{color:#94a3b8;font-size:12px}
+
+/* CHARTS */
+.chart-box{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:16px}
+.chart-ttl{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;font-weight:600}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .wrap{padding:12px}
+  .grid{grid-template-columns:1fr}
+  .m-grid{grid-template-columns:repeat(2,1fr)}
+  .tabs{overflow-x:auto;width:100%}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>📊 <span>Sector Rotation</span> Dashboard</h1>
+  <div class="upd">Aggiornato: 11 May 2026 — 17:36</div>
+</div>
+
+<div class="wrap">
+
+<!-- ═══════════════════════════════════════════════════════════
+     CRUSCOTTO DI CONTROLLO — TRAFFIC LIGHT (NEW)
+     ══════════════════════════════════════════════════════════ -->
+<div class="crusc-banner" style="border:2px solid #f59e0b">
+  <div class="crusc-light" style="background:#f59e0b;box-shadow:0 0 24px #f59e0b88">
+    <div class="crusc-overall">GIALLO</div>
+  </div>
+  <div class="crusc-body">
+    <div class="crusc-scenario" style="color:#f59e0b">SCENARIO B — LATE CYCLE / ATTENZIONE</div>
+    <div class="crusc-action">Smettere di comprare speculativi (small cap, crypto minori) · Accumulare liquidità (XEON/CSH2) · Attivare coperture (PUT mentre VIX è basso) · Mantenere core difensivo</div>
+    <div class="crusc-counts">
+      <span style="color:#22c55e">● 6 verdi</span>
+      <span style="color:#f59e0b">● 0 gialli</span>
+      <span style="color:#ef4444">● 1 rossi</span>
+      <span style="color:#475569;margin-left:14px;font-size:12px">su 7 indicatori monitorati</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     QUADRANTE MACRO — All-Weather (NEW)
+     ══════════════════════════════════════════════════════════ -->
+<div class="quadrant-banner" style="border-left:4px solid #ef4444">
+  <div class="q-header">
+    <div class="q-id" style="background:#ef4444">Q3</div>
+    <div>
+      <div class="q-name" style="color:#ef4444">STAGFLAZIONE 🔴</div>
+      <div class="q-axes">Crescita: <strong>?</strong> · Inflazione: <strong>⬆️</strong></div>
+    </div>
+  </div>
+  <div class="q-desc">Lo scenario peggiore: prezzi salgono ma economia rallenta. Azioni e bond scendono insieme (correlazione positiva). Il 60/40 viene massacrato.</div>
+  <div class="q-action"><strong>📋 AZIONE PORTAFOGLIO:</strong> BUNKER MODE. Aumenta oro e inflation-linked. Riduci equity growth. Cash pronto per ribassi.</div>
+  <div class="q-winners-section">
+    <div class="q-section-name">✅ ASSET VINCENTI</div>
+    <div class="q-cat"><span class="q-cat-name">EQUITY</span><span class="q-tag green">XLE Energy stocks</span> <span class="q-tag green">Healthcare difensivo (XLV)</span></div><div class="q-cat"><span class="q-cat-name">CREDIT</span><span class="q-tag green">TIPS</span> <span class="q-tag green">BTP Italia</span> <span class="q-tag green">Cash (XEON, CSH2)</span></div><div class="q-cat"><span class="q-cat-name">REAL ASSETS</span><span class="q-tag green">Oro (SGLD)</span> <span class="q-tag green">Materie prime energetiche</span></div><div class="q-cat"><span class="q-cat-name">ALTRO</span><span class="q-tag green">Liquidità alta</span></div>
+    <div class="q-section-name" style="margin-top:12px">❌ ASSET PERDENTI</div>
+    <div class="q-cat"><span class="q-tag red">60/40 tradizionale</span> <span class="q-tag red">Growth (multipli compressi)</span> <span class="q-tag red">Bond nominali lunghi</span> <span class="q-tag red">High Yield</span></div>
+  </div>
+  <div class="q-sectors">
+    <strong style="color:#64748b;font-size:12px">SETTORI EQUITY FAVORITI:</strong> <span class="tag green">XLE</span> <span class="tag green">XLV</span> <span class="tag green">XLU</span> <span class="tag green">XLP</span>
+    <br><strong style="color:#64748b;font-size:12px">EVITARE:</strong> <span class="tag red">XLY</span> <span class="tag red">XLK</span> <span class="tag red">XLRE</span>
+    
+  </div>
+</div>
+
+<!-- MACRO BAR -->
+<div class="macro-bar">
+        <div class="macro-item">
+          <div class="macro-lbl">10Y-2Y Spread</div>
+          <div class="macro-val" style="color:#22c55e">+0.48% <span class="arrow" style="color:#22c55e">▼</span></div>
+          <div class="macro-status">POSITIVA</div>
+        </div>
+        <div class="macro-item">
+          <div class="macro-lbl">HY Spreads OAS</div>
+          <div class="macro-val" style="color:#22c55e">2.81% <span class="arrow" style="color:#22c55e">▲</span></div>
+          <div class="macro-status">RISK-ON</div>
+        </div>
+        <div class="macro-item">
+          <div class="macro-lbl">VIX</div>
+          <div class="macro-val" style="color:#22c55e">17.2 <span class="arrow" style="color:#22c55e">▼</span></div>
+          <div class="macro-status">BASSA VOL</div>
+        </div>
+        <div class="macro-item">
+          <div class="macro-lbl">CPI USA YoY</div>
+          <div class="macro-val" style="color:#f59e0b">+3.3% <span class="arrow" style="color:#f59e0b">▲</span></div>
+          <div class="macro-status">YoY +3.3%</div>
+        </div>
+        <div class="macro-item">
+          <div class="macro-lbl">Core PCE YoY</div>
+          <div class="macro-val" style="color:#f59e0b">+3.2% <span class="arrow" style="color:#f59e0b">▲</span></div>
+          <div class="macro-status">YoY +3.2%</div>
+        </div>
+        <div class="macro-item">
+          <div class="macro-lbl">Industrial Prod YoY</div>
+          <div class="macro-val" style="color:#f59e0b">+0.7% <span class="arrow" style="color:#f59e0b">▲</span></div>
+          <div class="macro-status">YoY +0.7%</div>
+        </div>
+        <div class="macro-item">
+          <div class="macro-lbl">Tasso Disoccupazione USA</div>
+          <div class="macro-val" style="color:#f59e0b">4.3% <span class="arrow" style="color:#f59e0b">▼</span></div>
+          <div class="macro-status">4.3%</div>
+        </div>
+        <div class="macro-item">
+          <div class="macro-lbl">Chicago Fed Activity</div>
+          <div class="macro-val" style="color:#f59e0b">-0.20 <span class="arrow" style="color:#f59e0b">▲</span></div>
+          <div class="macro-status">SOTTO TREND</div>
+        </div></div>
+
+<!-- ASSET WATCH (NEW) -->
+<div class="section-header">🌐 Asset Watch — Indicatori Cross-Asset</div><div class="asset-bar">
+        <div class="asset-item">
+          <div class="asset-lbl">Dollar Index</div>
+          <div class="asset-val" style="color:#22c55e">97.92</div>
+          <div class="asset-rets">
+            <span style="color:#ef4444">1M: -0.74%</span>
+            <span style="color:#22c55e">3M: +0.1%</span>
+          </div>
+        </div>
+        <div class="asset-item">
+          <div class="asset-lbl">Copper/Gold Ratio</div>
+          <div class="asset-val" style="color:#22c55e">0.00136</div>
+          <div class="asset-rets">
+            <span style="color:#22c55e">1M: +10.71%</span>
+            <span style="color:#22c55e">3M: +14.42%</span>
+          </div>
+        </div>
+        <div class="asset-item">
+          <div class="asset-lbl">MOVE Index (Bond VIX)</div>
+          <div class="asset-val" style="color:#22c55e">67.25</div>
+          <div class="asset-rets">
+            <span style="color:#ef4444">1M: -9.13%</span>
+            <span style="color:#22c55e">3M: +16.94%</span>
+          </div>
+        </div>
+        <div class="asset-item">
+          <div class="asset-lbl">WTI Crude</div>
+          <div class="asset-val" style="color:#22c55e">98.47</div>
+          <div class="asset-rets">
+            <span style="color:#22c55e">1M: +1.97%</span>
+            <span style="color:#22c55e">3M: +55.59%</span>
+          </div>
+        </div>
+        <div class="asset-item">
+          <div class="asset-lbl">Gold (futures)</div>
+          <div class="asset-val" style="color:#ef4444">4731.10</div>
+          <div class="asset-rets">
+            <span style="color:#ef4444">1M: -0.65%</span>
+            <span style="color:#ef4444">3M: -2.68%</span>
+          </div>
+        </div>
+        <div class="asset-item">
+          <div class="asset-lbl">Silver (futures)</div>
+          <div class="asset-val" style="color:#22c55e">86.17</div>
+          <div class="asset-rets">
+            <span style="color:#22c55e">1M: +12.9%</span>
+            <span style="color:#22c55e">3M: +12.6%</span>
+          </div>
+        </div>
+        <div class="asset-item">
+          <div class="asset-lbl">Natural Gas</div>
+          <div class="asset-val" style="color:#22c55e">2.91</div>
+          <div class="asset-rets">
+            <span style="color:#22c55e">1M: +10.05%</span>
+            <span style="color:#ef4444">3M: -16.96%</span>
+          </div>
+        </div>
+        <div class="asset-item">
+          <div class="asset-lbl">Copper (futures)</div>
+          <div class="asset-val" style="color:#22c55e">6.46</div>
+          <div class="asset-rets">
+            <span style="color:#22c55e">1M: +10.03%</span>
+            <span style="color:#22c55e">3M: +11.39%</span>
+          </div>
+        </div></div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="goTab('cruscotto')">🚦 Cruscotto</div>
+  <div class="tab" onclick="goTab('scoring')">🎯 Scoring</div>
+  <div class="tab" onclick="goTab('charts')">📈 Charts</div>
+  <div class="tab" onclick="goTab('table')">📋 Tabella</div>
+  <div class="tab" onclick="goTab('cot')">🏦 COT Multi-Asset</div>
+  <div class="tab" onclick="goTab('guide')">📖 Guida</div>
+</div>
+
+<!-- CRUSCOTTO TAB (NEW) -->
+<div id="t-cruscotto" class="tab-content active">
+  <div class="cruscotto-detail">
+    <p style="color:#64748b;font-size:13px;margin-bottom:14px;line-height:1.7">
+      Dettaglio dei 7 indicatori monitorati. Ogni indicatore ha soglie operative dal framework family office del cruscotto di controllo.
+    </p>
+    <div class="crusc-table">
+      
+        <div class="crusc-row">
+          <div class="crusc-dot" style="background:#ef4444"></div>
+          <div class="crusc-name">Chicago Fed (ISM proxy)<span class="crusc-tk">FRED:CFNAI</span></div>
+          <div class="crusc-val" style="color:#ef4444;font-weight:700">-0.20</div>
+          <div class="crusc-msg">Attività in contrazione (-0.20) — recessione</div>
+        </div>
+        <div class="crusc-row">
+          <div class="crusc-dot" style="background:#22c55e"></div>
+          <div class="crusc-name">HY Spreads OAS<span class="crusc-tk">FRED:BAMLH0A0HYM2</span></div>
+          <div class="crusc-val" style="color:#22c55e;font-weight:700">2.81%</div>
+          <div class="crusc-msg">Credito sereno, banche prestano (in salita ↑)</div>
+        </div>
+        <div class="crusc-row">
+          <div class="crusc-dot" style="background:#22c55e"></div>
+          <div class="crusc-name">Yield Curve 10Y-2Y<span class="crusc-tk">FRED:T10Y2Y</span></div>
+          <div class="crusc-val" style="color:#22c55e;font-weight:700">+0.48%</div>
+          <div class="crusc-msg">Curva positiva, espansione</div>
+        </div>
+        <div class="crusc-row">
+          <div class="crusc-dot" style="background:#22c55e"></div>
+          <div class="crusc-name">Copper/Gold Ratio<span class="crusc-tk">HG/GC</span></div>
+          <div class="crusc-val" style="color:#22c55e;font-weight:700">0.00136</div>
+          <div class="crusc-msg">Crescita batte paura → ciclico bullish (3M: +14.42%)</div>
+        </div>
+        <div class="crusc-row">
+          <div class="crusc-dot" style="background:#22c55e"></div>
+          <div class="crusc-name">Dollar Index (DXY)<span class="crusc-tk">DX-Y.NYB</span></div>
+          <div class="crusc-val" style="color:#22c55e;font-weight:700">97.9</div>
+          <div class="crusc-msg">Dollaro debole, sostegno commodities ed EM (1M: -0.74%)</div>
+        </div>
+        <div class="crusc-row">
+          <div class="crusc-dot" style="background:#22c55e"></div>
+          <div class="crusc-name">MOVE Index (bond VIX)<span class="crusc-tk">^MOVE</span></div>
+          <div class="crusc-val" style="color:#22c55e;font-weight:700">67.2</div>
+          <div class="crusc-msg">Mercato bond stabile</div>
+        </div>
+        <div class="crusc-row">
+          <div class="crusc-dot" style="background:#22c55e"></div>
+          <div class="crusc-name">VIX<span class="crusc-tk">^VIX</span></div>
+          <div class="crusc-val" style="color:#22c55e;font-weight:700">17.2</div>
+          <div class="crusc-msg">Bassa volatilità, complacency</div>
+        </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCORING TAB -->
+<div id="t-scoring" class="tab-content">
+  <div class="grid">
+        <div class="card" style="border-top:4px solid #22c55e">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">XLK</span>
+              <span class="tk-name">Technology</span>
+            </div>
+            <div class="score-dot" style="background:#22c55e">5/5</div>
+          </div>
+          <div class="sig" style="color:#22c55e">FORTE</div>
+          <div class="m-grid">
+            <div class="m-cell"><div class="m-lbl">RS 4W vs SPY</div>
+              <div class="m-val" style="color:#22c55e">+12.86%</div></div>
+            <div class="m-cell"><div class="m-lbl">Ret 4W</div>
+              <div class="m-val" style="color:#22c55e">+20.3%</div></div>
+            <div class="m-cell"><div class="m-lbl">Breadth</div>
+              <div class="m-val">60.0%</div></div>
+            <div class="m-cell"><div class="m-lbl">RSI Ratio</div>
+              <div class="m-val">80.4</div></div>
+          </div>
+          <div class="det-sect"><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">RS 4W vs SPY</span><span class="det-val">+12.86%</span></div><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">Trend Ratio</span><span class="det-val">UP</span></div><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">Breadth >40%</span><span class="det-val">60.0%</span></div><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">RS 12W vs SPY</span><span class="det-val">+17.27%</span></div><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">RSI Ratio >50</span><span class="det-val">80.4</span></div></div>
+          
+        </div>
+        <div class="card" style="border-top:4px solid #ef4444" style="box-shadow:0 0 0 2px #22c55e40">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">XLE</span>
+              <span class="tk-name">Energy</span>
+            </div>
+            <div class="score-dot" style="background:#ef4444">1/5</div>
+          </div>
+          <div class="sig" style="color:#ef4444">NEGATIVO</div>
+          <div class="m-grid">
+            <div class="m-cell"><div class="m-lbl">RS 4W vs SPY</div>
+              <div class="m-val" style="color:#ef4444">-4.33%</div></div>
+            <div class="m-cell"><div class="m-lbl">Ret 4W</div>
+              <div class="m-val" style="color:#22c55e">+1.97%</div></div>
+            <div class="m-cell"><div class="m-lbl">Breadth</div>
+              <div class="m-val">40.0%</div></div>
+            <div class="m-cell"><div class="m-lbl">RSI Ratio</div>
+              <div class="m-val">43.3</div></div>
+          </div>
+          <div class="det-sect"><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 4W vs SPY</span><span class="det-val">-4.33%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Trend Ratio</span><span class="det-val">FLAT</span></div><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">Breadth >40%</span><span class="det-val">40.0%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 12W vs SPY</span><span class="det-val">-2.95%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RSI Ratio >50</span><span class="det-val">43.3</span></div></div>
+          <div class="cot-tag">📊 WTI COT: MM Net +70,791 ↓</div>
+        </div>
+        <div class="card" style="border-top:4px solid #ef4444">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">XLF</span>
+              <span class="tk-name">Financials</span>
+            </div>
+            <div class="score-dot" style="background:#ef4444">1/5</div>
+          </div>
+          <div class="sig" style="color:#ef4444">NEGATIVO</div>
+          <div class="m-grid">
+            <div class="m-cell"><div class="m-lbl">RS 4W vs SPY</div>
+              <div class="m-val" style="color:#ef4444">-7.17%</div></div>
+            <div class="m-cell"><div class="m-lbl">Ret 4W</div>
+              <div class="m-val" style="color:#ef4444">-1.05%</div></div>
+            <div class="m-cell"><div class="m-lbl">Breadth</div>
+              <div class="m-val">70.0%</div></div>
+            <div class="m-cell"><div class="m-lbl">RSI Ratio</div>
+              <div class="m-val">13.6</div></div>
+          </div>
+          <div class="det-sect"><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 4W vs SPY</span><span class="det-val">-7.17%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Trend Ratio</span><span class="det-val">FLAT</span></div><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">Breadth >40%</span><span class="det-val">70.0%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 12W vs SPY</span><span class="det-val">-8.42%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RSI Ratio >50</span><span class="det-val">13.6</span></div></div>
+          
+        </div>
+        <div class="card" style="border-top:4px solid #ef4444">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">XLI</span>
+              <span class="tk-name">Industrials</span>
+            </div>
+            <div class="score-dot" style="background:#ef4444">1/5</div>
+          </div>
+          <div class="sig" style="color:#ef4444">NEGATIVO</div>
+          <div class="m-grid">
+            <div class="m-cell"><div class="m-lbl">RS 4W vs SPY</div>
+              <div class="m-val" style="color:#ef4444">-5.17%</div></div>
+            <div class="m-cell"><div class="m-lbl">Ret 4W</div>
+              <div class="m-val" style="color:#22c55e">+1.08%</div></div>
+            <div class="m-cell"><div class="m-lbl">Breadth</div>
+              <div class="m-val">40.0%</div></div>
+            <div class="m-cell"><div class="m-lbl">RSI Ratio</div>
+              <div class="m-val">40.3</div></div>
+          </div>
+          <div class="det-sect"><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 4W vs SPY</span><span class="det-val">-5.17%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Trend Ratio</span><span class="det-val">DOWN</span></div><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">Breadth >40%</span><span class="det-val">40.0%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 12W vs SPY</span><span class="det-val">-7.34%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RSI Ratio >50</span><span class="det-val">40.3</span></div></div>
+          
+        </div>
+        <div class="card" style="border-top:4px solid #ef4444">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">XLB</span>
+              <span class="tk-name">Materials</span>
+            </div>
+            <div class="score-dot" style="background:#ef4444">1/5</div>
+          </div>
+          <div class="sig" style="color:#ef4444">NEGATIVO</div>
+          <div class="m-grid">
+            <div class="m-cell"><div class="m-lbl">RS 4W vs SPY</div>
+              <div class="m-val" style="color:#ef4444">-5.53%</div></div>
+            <div class="m-cell"><div class="m-lbl">Ret 4W</div>
+              <div class="m-val" style="color:#22c55e">+0.69%</div></div>
+            <div class="m-cell"><div class="m-lbl">Breadth</div>
+              <div class="m-val">80.0%</div></div>
+            <div class="m-cell"><div class="m-lbl">RSI Ratio</div>
+              <div class="m-val">29.2</div></div>
+          </div>
+          <div class="det-sect"><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 4W vs SPY</span><span class="det-val">-5.53%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Trend Ratio</span><span class="det-val">DOWN</span></div><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">Breadth >40%</span><span class="det-val">80.0%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 12W vs SPY</span><span class="det-val">-9.37%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RSI Ratio >50</span><span class="det-val">29.2</span></div></div>
+          <div class="cot-tag">📊 Copper COT: MM Net +63,473 ↑</div>
+        </div>
+        <div class="card" style="border-top:4px solid #ef4444">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">XLRE</span>
+              <span class="tk-name">Real Estate</span>
+            </div>
+            <div class="score-dot" style="background:#ef4444">1/5</div>
+          </div>
+          <div class="sig" style="color:#ef4444">NEGATIVO</div>
+          <div class="m-grid">
+            <div class="m-cell"><div class="m-lbl">RS 4W vs SPY</div>
+              <div class="m-val" style="color:#ef4444">-3.77%</div></div>
+            <div class="m-cell"><div class="m-lbl">Ret 4W</div>
+              <div class="m-val" style="color:#22c55e">+2.57%</div></div>
+            <div class="m-cell"><div class="m-lbl">Breadth</div>
+              <div class="m-val">80.0%</div></div>
+            <div class="m-cell"><div class="m-lbl">RSI Ratio</div>
+              <div class="m-val">34.8</div></div>
+          </div>
+          <div class="det-sect"><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 4W vs SPY</span><span class="det-val">-3.77%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Trend Ratio</span><span class="det-val">DOWN</span></div><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">Breadth >40%</span><span class="det-val">80.0%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 12W vs SPY</span><span class="det-val">-5.31%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RSI Ratio >50</span><span class="det-val">34.8</span></div></div>
+          
+        </div>
+        <div class="card" style="border-top:4px solid #ef4444" style="box-shadow:0 0 0 2px #22c55e40">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">XLP</span>
+              <span class="tk-name">Staples</span>
+            </div>
+            <div class="score-dot" style="background:#ef4444">1/5</div>
+          </div>
+          <div class="sig" style="color:#ef4444">NEGATIVO</div>
+          <div class="m-grid">
+            <div class="m-cell"><div class="m-lbl">RS 4W vs SPY</div>
+              <div class="m-val" style="color:#ef4444">-4.13%</div></div>
+            <div class="m-cell"><div class="m-lbl">Ret 4W</div>
+              <div class="m-val" style="color:#22c55e">+2.19%</div></div>
+            <div class="m-cell"><div class="m-lbl">Breadth</div>
+              <div class="m-val">50.0%</div></div>
+            <div class="m-cell"><div class="m-lbl">RSI Ratio</div>
+              <div class="m-val">35.9</div></div>
+          </div>
+          <div class="det-sect"><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 4W vs SPY</span><span class="det-val">-4.13%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Trend Ratio</span><span class="det-val">DOWN</span></div><div class="det-row"><span class="chk ok">✓</span><span class="det-lbl">Breadth >40%</span><span class="det-val">50.0%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 12W vs SPY</span><span class="det-val">-14.09%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RSI Ratio >50</span><span class="det-val">35.9</span></div></div>
+          
+        </div>
+        <div class="card" style="border-top:4px solid #ef4444" style="box-shadow:0 0 0 2px #22c55e40">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">XLV</span>
+              <span class="tk-name">Healthcare</span>
+            </div>
+            <div class="score-dot" style="background:#ef4444">0/5</div>
+          </div>
+          <div class="sig" style="color:#ef4444">NEGATIVO</div>
+          <div class="m-grid">
+            <div class="m-cell"><div class="m-lbl">RS 4W vs SPY</div>
+              <div class="m-val" style="color:#ef4444">-9.55%</div></div>
+            <div class="m-cell"><div class="m-lbl">Ret 4W</div>
+              <div class="m-val" style="color:#ef4444">-3.59%</div></div>
+            <div class="m-cell"><div class="m-lbl">Breadth</div>
+              <div class="m-val">20.0%</div></div>
+            <div class="m-cell"><div class="m-lbl">RSI Ratio</div>
+              <div class="m-val">20.5</div></div>
+          </div>
+          <div class="det-sect"><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 4W vs SPY</span><span class="det-val">-9.55%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Trend Ratio</span><span class="det-val">DOWN</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Breadth >40%</span><span class="det-val">20.0%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 12W vs SPY</span><span class="det-val">-16.07%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RSI Ratio >50</span><span class="det-val">20.5</span></div></div>
+          <div class="cot-tag">📊 Gold COT: MM Net +94,254 ↑</div>
+        </div>
+        <div class="card" style="border-top:4px solid #ef4444" style="box-shadow:0 0 0 2px #22c55e40">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">XLU</span>
+              <span class="tk-name">Utilities</span>
+            </div>
+            <div class="score-dot" style="background:#ef4444">0/5</div>
+          </div>
+          <div class="sig" style="color:#ef4444">NEGATIVO</div>
+          <div class="m-grid">
+            <div class="m-cell"><div class="m-lbl">RS 4W vs SPY</div>
+              <div class="m-val" style="color:#ef4444">-8.71%</div></div>
+            <div class="m-cell"><div class="m-lbl">Ret 4W</div>
+              <div class="m-val" style="color:#ef4444">-2.69%</div></div>
+            <div class="m-cell"><div class="m-lbl">Breadth</div>
+              <div class="m-val">20.0%</div></div>
+            <div class="m-cell"><div class="m-lbl">RSI Ratio</div>
+              <div class="m-val">36.8</div></div>
+          </div>
+          <div class="det-sect"><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 4W vs SPY</span><span class="det-val">-8.71%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Trend Ratio</span><span class="det-val">FLAT</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Breadth >40%</span><span class="det-val">20.0%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 12W vs SPY</span><span class="det-val">-10.05%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RSI Ratio >50</span><span class="det-val">36.8</span></div></div>
+          <div class="cot-tag">📊 Gold COT: MM Net +94,254 ↑</div>
+        </div>
+        <div class="card" style="border-top:4px solid #ef4444">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">XLY</span>
+              <span class="tk-name">Discretionary</span>
+            </div>
+            <div class="score-dot" style="background:#ef4444">0/5</div>
+          </div>
+          <div class="sig" style="color:#ef4444">NEGATIVO</div>
+          <div class="m-grid">
+            <div class="m-cell"><div class="m-lbl">RS 4W vs SPY</div>
+              <div class="m-val" style="color:#ef4444">-3.85%</div></div>
+            <div class="m-cell"><div class="m-lbl">Ret 4W</div>
+              <div class="m-val" style="color:#22c55e">+2.49%</div></div>
+            <div class="m-cell"><div class="m-lbl">Breadth</div>
+              <div class="m-val">30.0%</div></div>
+            <div class="m-cell"><div class="m-lbl">RSI Ratio</div>
+              <div class="m-val">12.3</div></div>
+          </div>
+          <div class="det-sect"><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 4W vs SPY</span><span class="det-val">-3.85%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Trend Ratio</span><span class="det-val">DOWN</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">Breadth >40%</span><span class="det-val">30.0%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RS 12W vs SPY</span><span class="det-val">-5.47%</span></div><div class="det-row"><span class="chk no">✗</span><span class="det-lbl">RSI Ratio >50</span><span class="det-val">12.3</span></div></div>
+          
+        </div></div>
+</div>
+
+<!-- CHARTS TAB -->
+<div id="t-charts" class="tab-content">
+  <div class="chart-box">
+    <div class="chart-ttl">Relative Strength vs SPY — Top 6 Settori per Score (Normalizzato a 100 = 26W fa)</div>
+    <div id="rs-chart" style="height:420px"></div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-ttl">Heatmap — Ritorni Assoluti e Relative Strength vs SPY</div>
+    <div id="hm-chart" style="height:320px"></div>
+  </div>
+  <div class="chart-box" id="macro-box">
+    <div class="chart-ttl">Indicatori Macro — Yield Curve & HY Spreads (52 settimane)</div>
+    <div id="mc-chart" style="height:320px"></div>
+  </div>
+</div>
+
+<!-- TABLE TAB -->
+<div id="t-table" class="tab-content">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th><th>Settore</th><th>Score</th><th>Segnale</th>
+          <th>Ret 1W</th><th>Ret 4W</th><th>Ret 12W</th>
+          <th>RS 4W</th><th>RS 12W</th><th>RS 26W</th>
+          <th>Breadth</th><th>RSI Ratio</th><th>Trend Ratio</th>
+          <th>MA50/200</th><th>Volatilità</th>
+        </tr>
+      </thead>
+      <tbody><tr>
+          <td><b>XLK</b></td>
+          <td>Technology</td>
+          <td><span class="score-pill" style="background:#22c55e">5/5</span></td>
+          <td style="color:#22c55e;font-weight:600">FORTE</td>
+          <td style="color:#22c55e">+7.45%</td><td style="color:#22c55e">+20.3%</td><td style="color:#22c55e">+27.68%</td>
+          <td style="color:#22c55e">+12.86%</td><td style="color:#22c55e">+17.27%</td><td style="color:#22c55e">+8.52%</td>
+          <td>60.0%</td>
+          <td>80.4</td>
+          <td>UP</td>
+          <td>✓ / ✓</td>
+          <td>21.4%</td>
+        </tr><tr>
+          <td><b>XLE</b></td>
+          <td>Energy</td>
+          <td><span class="score-pill" style="background:#ef4444">1/5</span></td>
+          <td style="color:#ef4444;font-weight:600">NEGATIVO</td>
+          <td style="color:#ef4444">-4.03%</td><td style="color:#22c55e">+1.97%</td><td style="color:#22c55e">+5.66%</td>
+          <td style="color:#ef4444">-4.33%</td><td style="color:#ef4444">-2.95%</td><td style="color:#22c55e">+20.64%</td>
+          <td>40.0%</td>
+          <td>43.3</td>
+          <td>FLAT</td>
+          <td>✗ / ✓</td>
+          <td>27.4%</td>
+        </tr><tr>
+          <td><b>XLF</b></td>
+          <td>Financials</td>
+          <td><span class="score-pill" style="background:#ef4444">1/5</span></td>
+          <td style="color:#ef4444;font-weight:600">NEGATIVO</td>
+          <td style="color:#ef4444">-0.69%</td><td style="color:#ef4444">-1.05%</td><td style="color:#ef4444">-0.29%</td>
+          <td style="color:#ef4444">-7.17%</td><td style="color:#ef4444">-8.42%</td><td style="color:#ef4444">-9.04%</td>
+          <td>70.0%</td>
+          <td>13.6</td>
+          <td>FLAT</td>
+          <td>✓ / ✗</td>
+          <td>8.3%</td>
+        </tr><tr>
+          <td><b>XLI</b></td>
+          <td>Industrials</td>
+          <td><span class="score-pill" style="background:#ef4444">1/5</span></td>
+          <td style="color:#ef4444;font-weight:600">NEGATIVO</td>
+          <td style="color:#22c55e">+1.63%</td><td style="color:#22c55e">+1.08%</td><td style="color:#22c55e">+0.89%</td>
+          <td style="color:#ef4444">-5.17%</td><td style="color:#ef4444">-7.34%</td><td style="color:#22c55e">+4.82%</td>
+          <td>40.0%</td>
+          <td>40.3</td>
+          <td>DOWN</td>
+          <td>✓ / ✓</td>
+          <td>21.2%</td>
+        </tr><tr>
+          <td><b>XLB</b></td>
+          <td>Materials</td>
+          <td><span class="score-pill" style="background:#ef4444">1/5</span></td>
+          <td style="color:#ef4444;font-weight:600">NEGATIVO</td>
+          <td style="color:#22c55e">+1.63%</td><td style="color:#22c55e">+0.69%</td><td style="color:#ef4444">-1.33%</td>
+          <td style="color:#ef4444">-5.53%</td><td style="color:#ef4444">-9.37%</td><td style="color:#22c55e">+14.01%</td>
+          <td>80.0%</td>
+          <td>29.2</td>
+          <td>DOWN</td>
+          <td>✓ / ✓</td>
+          <td>16.2%</td>
+        </tr><tr>
+          <td><b>XLRE</b></td>
+          <td>Real Estate</td>
+          <td><span class="score-pill" style="background:#ef4444">1/5</span></td>
+          <td style="color:#ef4444;font-weight:600">NEGATIVO</td>
+          <td style="color:#22c55e">+0.85%</td><td style="color:#22c55e">+2.57%</td><td style="color:#22c55e">+3.09%</td>
+          <td style="color:#ef4444">-3.77%</td><td style="color:#ef4444">-5.31%</td><td style="color:#22c55e">+1.92%</td>
+          <td>80.0%</td>
+          <td>34.8</td>
+          <td>DOWN</td>
+          <td>✓ / ✓</td>
+          <td>15.0%</td>
+        </tr><tr>
+          <td><b>XLP</b></td>
+          <td>Staples</td>
+          <td><span class="score-pill" style="background:#ef4444">1/5</span></td>
+          <td style="color:#ef4444;font-weight:600">NEGATIVO</td>
+          <td style="color:#ef4444">-0.96%</td><td style="color:#22c55e">+2.19%</td><td style="color:#ef4444">-6.46%</td>
+          <td style="color:#ef4444">-4.13%</td><td style="color:#ef4444">-14.09%</td><td style="color:#22c55e">+2.36%</td>
+          <td>50.0%</td>
+          <td>35.9</td>
+          <td>DOWN</td>
+          <td>✓ / ✓</td>
+          <td>12.9%</td>
+        </tr><tr>
+          <td><b>XLV</b></td>
+          <td>Healthcare</td>
+          <td><span class="score-pill" style="background:#ef4444">0/5</span></td>
+          <td style="color:#ef4444;font-weight:600">NEGATIVO</td>
+          <td style="color:#ef4444">-1.25%</td><td style="color:#ef4444">-3.59%</td><td style="color:#ef4444">-8.63%</td>
+          <td style="color:#ef4444">-9.55%</td><td style="color:#ef4444">-16.07%</td><td style="color:#ef4444">-8.06%</td>
+          <td>20.0%</td>
+          <td>20.5</td>
+          <td>DOWN</td>
+          <td>✗ / ✗</td>
+          <td>13.8%</td>
+        </tr><tr>
+          <td><b>XLU</b></td>
+          <td>Utilities</td>
+          <td><span class="score-pill" style="background:#ef4444">0/5</span></td>
+          <td style="color:#ef4444;font-weight:600">NEGATIVO</td>
+          <td style="color:#ef4444">-2.48%</td><td style="color:#ef4444">-2.69%</td><td style="color:#ef4444">-2.07%</td>
+          <td style="color:#ef4444">-8.71%</td><td style="color:#ef4444">-10.05%</td><td style="color:#ef4444">-5.53%</td>
+          <td>20.0%</td>
+          <td>36.8</td>
+          <td>FLAT</td>
+          <td>✗ / ✓</td>
+          <td>18.9%</td>
+        </tr><tr>
+          <td><b>XLY</b></td>
+          <td>Discretionary</td>
+          <td><span class="score-pill" style="background:#ef4444">0/5</span></td>
+          <td style="color:#ef4444;font-weight:600">NEGATIVO</td>
+          <td style="color:#22c55e">+1.07%</td><td style="color:#22c55e">+2.49%</td><td style="color:#22c55e">+2.92%</td>
+          <td style="color:#ef4444">-3.85%</td><td style="color:#ef4444">-5.47%</td><td style="color:#ef4444">-9.18%</td>
+          <td>30.0%</td>
+          <td>12.3</td>
+          <td>DOWN</td>
+          <td>✓ / ✓</td>
+          <td>16.5%</td>
+        </tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- COT TAB -->
+<div id="t-cot" class="tab-content">
+  <p style="color:#64748b;font-size:14px;margin-bottom:16px;line-height:1.7">
+    Posizionamento netto dei <strong style="color:#94a3b8">Managed Money</strong> (hedge fund speculativi)
+    sui futures commodity — fonte CFTC Disaggregated COT Report, aggiornamento settimanale.<br>
+    <span style="color:#f59e0b">Net positivo + in aumento</span> = accumulo bullish → anticipa flussi sui settori correlati.
+    <span style="color:#ef4444">Short covering</span> (net negativo ma in risalita) = segnale spesso più forte del long building.
+  </p>
+  <div class="cot-grid">
+        <div class="cot-card">
+          <div class="cot-name">WTI Crude</div>
+          <div class="cot-net" style="color:#22c55e">+70,791</div>
+          <div class="cot-chg" style="color:#ef4444">WoW: -9,540 ↓</div>
+          <div class="cot-sent">BULLISH</div>
+          <div class="cot-date" style="color:#475569;font-size:11px">2026-05-05</div>
+        </div>
+        <div class="cot-card">
+          <div class="cot-name">Natural Gas</div>
+          <div class="cot-net" style="color:#ef4444">-107,489</div>
+          <div class="cot-chg" style="color:#ef4444">WoW: -10,244 ↓</div>
+          <div class="cot-sent">BEARISH</div>
+          <div class="cot-date" style="color:#475569;font-size:11px">2026-05-05</div>
+        </div>
+        <div class="cot-card">
+          <div class="cot-name">Gold</div>
+          <div class="cot-net" style="color:#22c55e">+94,254</div>
+          <div class="cot-chg" style="color:#22c55e">WoW: +4,502 ↑</div>
+          <div class="cot-sent">BULLISH</div>
+          <div class="cot-date" style="color:#475569;font-size:11px">2026-05-05</div>
+        </div>
+        <div class="cot-card">
+          <div class="cot-name">Silver</div>
+          <div class="cot-net" style="color:#22c55e">+10,843</div>
+          <div class="cot-chg" style="color:#22c55e">WoW: +237 ↑</div>
+          <div class="cot-sent">BULLISH</div>
+          <div class="cot-date" style="color:#475569;font-size:11px">2026-05-05</div>
+        </div>
+        <div class="cot-card">
+          <div class="cot-name">Copper</div>
+          <div class="cot-net" style="color:#22c55e">+63,473</div>
+          <div class="cot-chg" style="color:#22c55e">WoW: +2,536 ↑</div>
+          <div class="cot-sent">BULLISH</div>
+          <div class="cot-date" style="color:#475569;font-size:11px">2026-05-05</div>
+        </div></div>
+</div>
+
+<!-- GUIDE TAB -->
+<div id="t-guide" class="tab-content">
+<style>
+.g-wrap { max-width:900px; }
+.g-wrap h2 { font-size:22px; font-weight:800; color:#f1f5f9; margin-bottom:6px; }
+.g-wrap .g-subtitle { color:#64748b; font-size:14px; margin-bottom:32px; }
+.g-section { margin-bottom:36px; }
+.g-section h3 { font-size:16px; font-weight:700; color:#60a5fa; margin-bottom:14px;
+                 padding-bottom:8px; border-bottom:1px solid #1e3a5f; display:flex; align-items:center; gap:8px; }
+.g-section p { color:#94a3b8; font-size:14px; line-height:1.8; margin-bottom:10px; }
+.g-section strong { color:#e2e8f0; }
+
+/* callout boxes */
+.g-box { border-radius:10px; padding:16px 20px; margin:14px 0; font-size:14px; line-height:1.7; }
+.g-box.blue  { background:#0f2744; border-left:4px solid #3b82f6; color:#93c5fd; }
+.g-box.green { background:#052e16; border-left:4px solid #22c55e; color:#86efac; }
+.g-box.amber { background:#1c1002; border-left:4px solid #f59e0b; color:#fcd34d; }
+.g-box.red   { background:#1c0a0a; border-left:4px solid #ef4444; color:#fca5a5; }
+.g-box.slate { background:#1e293b; border-left:4px solid #475569; color:#94a3b8; }
+.g-box strong { color:inherit; }
+
+/* score legend */
+.score-legend { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; margin:14px 0; }
+.sl-item { border-radius:8px; padding:12px 14px; }
+.sl-score { font-size:20px; font-weight:800; margin-bottom:2px; }
+.sl-label { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
+.sl-desc  { font-size:12px; margin-top:4px; opacity:.8; }
+
+/* metric cards */
+.metric-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; margin:14px 0; }
+.mc { background:#1e293b; border:1px solid #334155; border-radius:8px; padding:14px; }
+.mc-name { color:#60a5fa; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+.mc-desc { color:#94a3b8; font-size:13px; line-height:1.6; }
+.mc-formula { background:#0f172a; border-radius:4px; padding:4px 8px; font-family:monospace; font-size:12px; color:#a78bfa; margin-top:6px; display:inline-block; }
+
+/* regime table */
+.regime-table { width:100%; border-collapse:collapse; font-size:13px; margin:14px 0; }
+.regime-table th { background:#0f172a; color:#64748b; padding:8px 12px; text-align:left; font-size:11px;
+                    font-weight:700; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid #334155; }
+.regime-table td { padding:10px 12px; border-bottom:1px solid #1e293b; color:#94a3b8; vertical-align:top; }
+.regime-table tr:hover td { background:#1e293b; }
+
+/* workflow steps */
+.workflow { display:flex; flex-direction:column; gap:0; margin:14px 0; }
+.wf-step { display:flex; gap:16px; }
+.wf-left { display:flex; flex-direction:column; align-items:center; }
+.wf-num { width:32px; height:32px; border-radius:50%; background:#1d4ed8; color:#bfdbfe;
+           font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.wf-line { width:2px; background:#1e3a5f; flex:1; margin:4px 0; min-height:16px; }
+.wf-body { padding:4px 0 20px; }
+.wf-title { color:#e2e8f0; font-weight:700; font-size:14px; margin-bottom:3px; }
+.wf-detail { color:#64748b; font-size:13px; line-height:1.6; }
+
+/* entry decision */
+.entry-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0; }
+.entry-card { background:#1e293b; border:1px solid #334155; border-radius:8px; padding:14px; }
+.entry-card h4 { color:#f1f5f9; font-size:13px; font-weight:700; margin-bottom:8px; }
+.entry-card ul { margin:0 0 0 16px; color:#94a3b8; font-size:13px; line-height:1.8; }
+
+/* cot guide */
+.cot-guide { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0; }
+.cg { background:#1e293b; border:1px solid #334155; border-radius:8px; padding:14px; }
+.cg-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+.cg-desc { color:#94a3b8; font-size:13px; line-height:1.6; }
+
+/* sources */
+.sources { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; margin:14px 0; }
+.src { background:#1e293b; border:1px solid #334155; border-radius:8px; padding:14px; }
+.src-name { color:#f1f5f9; font-weight:700; font-size:13px; margin-bottom:4px; }
+.src-url  { color:#3b82f6; font-size:12px; margin-bottom:6px; }
+.src-desc { color:#64748b; font-size:12px; line-height:1.5; }
+.src-badge { display:inline-block; background:#172554; color:#93c5fd; border-radius:4px;
+              padding:1px 7px; font-size:10px; font-weight:700; margin-bottom:6px; }
+
+@media(max-width:640px){
+  .entry-grid,.cot-guide { grid-template-columns:1fr; }
+}
+</style>
+
+<div class="g-wrap">
+
+  <h2>📖 Manuale d'Uso — Sector Rotation Dashboard</h2>
+  <p class="g-subtitle">Tutto ciò che serve per leggere ogni sezione, interpretare i segnali e tradurli in decisioni operative.</p>
+
+  <!-- ══════════ 1. LOGICA GENERALE ══════════ -->
+  <div class="g-section">
+    <h3>🧠 1. Logica del Sistema a Tre Livelli</h3>
+    <p>Il dashboard integra tre livelli di analisi sovrapposti. Tutti e tre devono convergere prima di agire. Un segnale tecnico senza macro e senza flussi è rumore.</p>
+    <div class="g-box blue">
+      <strong>LIVELLO 1 — MACRO REGIME</strong> (banner in cima + tab Macro)<br>
+      Identifica in quale fase del ciclo economico ci troviamo. Determina <em>quali settori sono strutturalmente favoriti</em> nei prossimi 3–9 mesi. Cambia lentamente — controllalo ogni mese.<br><br>
+      <strong>LIVELLO 2 — FLUSSI ISTITUZIONALI</strong> (Composite Score + COT)<br>
+      Conferma che il denaro istituzionale si stia effettivamente muovendo nella direzione indicata dal macro. Senza questo, il segnale macro è anticipatorio ma non ancora azionabile.<br><br>
+      <strong>LIVELLO 3 — MOMENTUM E BREADTH</strong> (RS, Breadth, RSI Ratio)<br>
+      Verifica che il movimento sia ampio (partecipato dai componenti) e in accelerazione. Evita falsi breakout guidati da 2–3 mega-cap.
+    </div>
+    <div class="g-box amber">
+      <strong>Regola d'oro:</strong> entra solo quando tutti e tre i livelli sono allineati. Non anticipare con il livello 1 da solo. Non inseguire con il livello 3 da solo.
+    </div>
+  </div>
+
+  <!-- ══════════ 2. REGIME MACRO BANNER ══════════ -->
+  <div class="g-section">
+    <h3>🌍 2. Banner Regime Macro (in cima al dashboard)</h3>
+    <p>Identifica automaticamente il quadrante del ciclo economico basandosi su yield curve 10Y–2Y e HY spreads. Il quadrante determina i settori strutturalmente favoriti e quelli da evitare.</p>
+    <table class="regime-table">
+      <thead><tr><th>Quadrante</th><th>Yield Curve</th><th>HY Spreads</th><th>Settori Favoriti</th><th>Evitare</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong style="color:#22c55e">BOOM / RISK-ON</strong></td>
+          <td>> +0.5%</td><td>< 3.5%</td>
+          <td>Tech, Discretionary, Financials, Industrials</td>
+          <td>Utilities, Staples</td>
+        </tr>
+        <tr>
+          <td><strong style="color:#f59e0b">LATE CYCLE / REFLAZIONE</strong></td>
+          <td>da 0 a -0.3%</td><td>3.5–5%</td>
+          <td>Energy, Materials, Healthcare, Industrials</td>
+          <td>Real Estate, Tech</td>
+        </tr>
+        <tr>
+          <td><strong style="color:#f97316">RECOVERY EARLY / STEEPENING</strong></td>
+          <td>< 0 ma in risalita</td><td>in contrazione</td>
+          <td>Financials, Industrials, Materials, poi Tech</td>
+          <td>Utilities, Staples</td>
+        </tr>
+        <tr>
+          <td><strong style="color:#ef4444">RECESSIONE / RISK-OFF</strong></td>
+          <td>< -0.3%</td><td>> 4.5%</td>
+          <td>Healthcare, Utilities, Staples, Cash</td>
+          <td>Tech, Discretionary, Financials</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="g-box blue">
+      <strong>⚡ Alert Steepening:</strong> quando appare il badge arancione "YIELD CURVE RE-STEEPENING", la curva sta passando da invertita a piatta. Questo è storicamente il segnale più precoce (4–8 settimane di anticipo) di transizione dal regime recessivo a quello di recovery. I Financials e i ciclici early-cycle iniziano a ricevere flussi prima che il mercato riconosca la transizione.
+    </div>
+  </div>
+
+  <!-- ══════════ 3. INDICATORI MACRO ══════════ -->
+  <div class="g-section">
+    <h3>📡 3. Indicatori Macro (barra sotto il banner)</h3>
+    <div class="metric-cards">
+      <div class="mc">
+        <div class="mc-name">📈 Yield Curve 10Y–2Y</div>
+        <div class="mc-desc">Differenza tra i rendimenti dei Treasury USA a 10 anni e 2 anni. Indica le aspettative di crescita del mercato obbligazionario.</div>
+        <div class="mc-formula">FRED: T10Y2Y</div>
+        <div style="margin-top:8px;font-size:12px;color:#64748b">
+          <span style="color:#22c55e">Verde = positiva</span> · 
+          <span style="color:#f59e0b">Ambra = piatta</span> · 
+          <span style="color:#ef4444">Rosso = invertita</span><br>
+          La <strong style="color:#e2e8f0">direzione</strong> conta più del livello: una curva ancora negativa ma in risalita (▲) è il segnale di transizione più importante.
+        </div>
+      </div>
+      <div class="mc">
+        <div class="mc-name">💳 HY Spreads OAS</div>
+        <div class="mc-desc">Option-Adjusted Spread delle obbligazioni High Yield USA vs Treasury. Misura la percezione del rischio di credito da parte del mercato.</div>
+        <div class="mc-formula">FRED: BAMLH0A0HYM2</div>
+        <div style="margin-top:8px;font-size:12px;color:#64748b">
+          <span style="color:#22c55e">< 3.5% = Risk-On</span> · 
+          <span style="color:#f59e0b">3.5–5% = Cautela</span> · 
+          <span style="color:#ef4444">> 5% = Stress</span><br>
+          Spreads che si <strong style="color:#e2e8f0">allargano rapidamente</strong> segnalano deterioramento del credito → riduci esposizione ciclica prima che il mercato azionario lo capisca.
+        </div>
+      </div>
+      <div class="mc">
+        <div class="mc-name">⚡ VIX</div>
+        <div class="mc-desc">Indice di volatilità implicita a 30 giorni dell'S&P 500. Proxy della paura del mercato.</div>
+        <div class="mc-formula">FRED: VIXCLS</div>
+        <div style="margin-top:8px;font-size:12px;color:#64748b">
+          <span style="color:#22c55e">< 18 = Bassa vol, complacency</span><br>
+          <span style="color:#f59e0b">18–28 = Normale</span><br>
+          <span style="color:#ef4444">> 28 = Stress → opportunità contrarian nei difensivi</span>
+        </div>
+      </div>
+      <div class="mc">
+        <div class="mc-name">📊 LEI USA (OECD)</div>
+        <div class="mc-desc">Leading Economic Indicator — anticipa i turning point del ciclo economico di 6–9 mesi. Il dato più importante per la detection del regime.</div>
+        <div class="mc-formula">FRED: USALOLITONOSTSAM</div>
+        <div style="margin-top:8px;font-size:12px;color:#64748b">
+          Smesso di scendere + stabilizzazione = prossimo regime in arrivo.<br>
+          <strong style="color:#e2e8f0">Non guardare il livello assoluto — guarda la derivata.</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ 4. COMPOSITE SCORE ══════════ -->
+  <div class="g-section">
+    <h3>🎯 4. Composite Score 0–5 (tab Scoring)</h3>
+    <p>Il cuore del sistema. Ogni settore riceve 1 punto per ciascuno dei 5 criteri soddisfatti. Rappresenta la convergenza tra momentum, flussi e struttura tecnica.</p>
+
+    <div class="score-legend">
+      <div class="sl-item" style="background:#052e16;border:1px solid #166534">
+        <div class="sl-score" style="color:#22c55e">4–5/5</div>
+        <div class="sl-label" style="color:#86efac">FORTE</div>
+        <div class="sl-desc" style="color:#4ade80">Setup ottimale. Procedi all'analisi tecnica per il timing di entry.</div>
+      </div>
+      <div class="sl-item" style="background:#1c1002;border:1px solid #92400e">
+        <div class="sl-score" style="color:#f59e0b">3/5</div>
+        <div class="sl-label" style="color:#fcd34d">MODERATO</div>
+        <div class="sl-desc" style="color:#fbbf24">Segnale presente ma incompleto. Watchlist attiva, aspetta 1–2 conferme.</div>
+      </div>
+      <div class="sl-item" style="background:#1a0e00;border:1px solid #7c2d12">
+        <div class="sl-score" style="color:#f97316">2/5</div>
+        <div class="sl-label" style="color:#fdba74">DEBOLE</div>
+        <div class="sl-desc" style="color:#fb923c">Segnali prematuri o contraddittori. Non entrare ancora.</div>
+      </div>
+      <div class="sl-item" style="background:#1c0a0a;border:1px solid #7f1d1d">
+        <div class="sl-score" style="color:#ef4444">0–1/5</div>
+        <div class="sl-label" style="color:#fca5a5">NEGATIVO</div>
+        <div class="sl-desc" style="color:#f87171">Evita o considera underweight. Potenziale short su breakout ribassista.</div>
+      </div>
+    </div>
+
+    <p style="margin-top:16px">I cinque criteri in dettaglio:</p>
+    <div class="metric-cards">
+      <div class="mc">
+        <div class="mc-name">① RS 4W vs SPY</div>
+        <div class="mc-desc">Il settore ha sovraperformato l'S&P 500 nelle ultime 4 settimane (20 giorni di borsa). Il segnale più immediato di rotation in corso.</div>
+        <div class="mc-formula">ratio_oggi / ratio_20gg_fa − 1 > 0</div>
+        <div style="color:#64748b;font-size:12px;margin-top:6px">Anche +0.1% conta: la direzione importa, non la magnitudine assoluta.</div>
+      </div>
+      <div class="mc">
+        <div class="mc-name">② Trend Ratio UP</div>
+        <div class="mc-desc">Il ratio settore/SPY forma higher highs e higher lows negli ultimi 60 giorni. Filtra i falsi segnali di breve termine.</div>
+        <div class="mc-formula">media(t3) > media(t2) > media(t1)</div>
+        <div style="color:#64748b;font-size:12px;margin-top:6px">I 60gg sono divisi in tre sottoperiodi da 20gg ciascuno.</div>
+      </div>
+      <div class="mc">
+        <div class="mc-name">③ Breadth >40%</div>
+        <div class="mc-desc">Almeno il 40% dei 10 titoli principali del settore è sopra la propria MA50. Garantisce che il movimento sia partecipato, non trainato da 1–2 mega-cap.</div>
+        <div class="mc-formula">titoli_sopra_MA50 / totale ≥ 40%</div>
+        <div style="color:#64748b;font-size:12px;margin-top:6px">< 30% = movimento fragile, evita entry.</div>
+      </div>
+      <div class="mc">
+        <div class="mc-name">④ RS 12W vs SPY</div>
+        <div class="mc-desc">Conferma la sovraperformance su 12 settimane (60 giorni). Filtra i ritorni di breve legati a eventi singoli e valida la struttura del trend.</div>
+        <div class="mc-formula">ratio_oggi / ratio_60gg_fa − 1 > 0</div>
+        <div style="color:#64748b;font-size:12px;margin-top:6px">Se RS 4W è positiva ma RS 12W è negativa, il segnale è debole: possibile rimbalzo nel downtrend.</div>
+      </div>
+      <div class="mc">
+        <div class="mc-name">⑤ RSI del Ratio >50</div>
+        <div class="mc-desc">RSI a 14 periodi calcolato sul ratio settore/SPY (non sul prezzo assoluto). Misura il momentum interno della relative strength.</div>
+        <div class="mc-formula">RSI(ratio, 14) > 50</div>
+        <div style="color:#64748b;font-size:12px;margin-top:6px">> 60 = momentum forte. < 40 = il ratio sta perdendo slancio.</div>
+      </div>
+    </div>
+
+    <div class="g-box slate">
+      <strong>Come usare i cambiamenti di score settimana su settimana:</strong><br>
+      Il segnale più azionabile non è il settore a 5/5 (già in trend) — è il settore che passa da <strong>2→3 o da 3→4</strong>. Quella è la rotation che inizia. Tieni traccia del delta settimanale, non del valore assoluto.
+    </div>
+  </div>
+
+  <!-- ══════════ 5. CHARTS ══════════ -->
+  <div class="g-section">
+    <h3>📈 5. Grafici (tab Charts)</h3>
+
+    <p><strong>Relative Strength Normalizzata (grafico linee)</strong></p>
+    <p>Mostra l'andamento del ratio settore/SPY per i top 6 settori per score, normalizzato a 100 all'inizio del periodo (26 settimane). La linea tratteggiata grigia è SPY = baseline 100.</p>
+    <div class="g-box blue">
+      Come interpretarlo: una linea <strong>sopra 100 e in salita</strong> = il settore sta battendo l'indice e accelera. Una linea <strong>che sale da sotto 100</strong> dopo un minimo = rotation nascente — segnale più precoce disponibile nel dashboard, spesso 4–6 settimane prima del breakout assoluto.
+    </div>
+
+    <p><strong>Heatmap Ritorni e Relative Strength</strong></p>
+    <p>Griglia settori × metriche con codice colore verde/rosso. Permette di vedere in un colpo d'occhio dove si concentra la forza relativa e assoluta.</p>
+    <div class="g-box slate">
+      Un settore con la colonna "RS 12W" rossa ma "RS 4W" verde può essere un rimbalzo tecnico nel downtrend (pericoloso) oppure l'inizio di una rotation (opportunità). Disambigua con il Trend Ratio e la breadth.
+    </div>
+
+    <p><strong>Yield Curve & HY Spreads (asse duale)</strong></p>
+    <p>52 settimane di dati sovrapposti. La linea tratteggiata orizzontale segna lo zero per la yield curve. Nota: le due serie usano assi Y separati (sinistra e destra).</p>
+  </div>
+
+  <!-- ══════════ 6. COT REPORT ══════════ -->
+  <div class="g-section">
+    <h3>🏦 6. COT Report — Come Leggerlo (tab COT)</h3>
+    <p>Il COT (Commitment of Traders) disaggregato della CFTC mostra il posizionamento netto dei <strong>Managed Money</strong> (hedge fund speculativi) sui futures commodity. Si aggiorna ogni venerdì con dati al martedì precedente.</p>
+    <div class="cot-guide">
+      <div class="cg">
+        <div class="cg-title" style="color:#22c55e">✅ Segnali Bullish</div>
+        <div class="cg-desc">
+          • MM Net <strong style="color:#e2e8f0">positivo e in aumento</strong> → accumulo in corso<br>
+          • MM Net <strong style="color:#e2e8f0">negativo ma in risalita rapida</strong> → short covering: segnale spesso più potente del long building perché crea urgenza<br>
+          • MM Net positivo + variazione WoW crescente = momentum confermato
+        </div>
+      </div>
+      <div class="cg">
+        <div class="cg-title" style="color:#ef4444">❌ Segnali Bearish / Cautela</div>
+        <div class="cg-desc">
+          • MM Net positivo ma <strong style="color:#e2e8f0">in calo</strong> → distribuzione: gli hedge fund escono<br>
+          • MM Net ai <strong style="color:#e2e8f0">massimi storici</strong> → posizionamento estremo = poco combustibile residuo, rischio reversal<br>
+          • Commercials (produttori) che aumentano le coperture = aspettano prezzi più bassi
+        </div>
+      </div>
+      <div class="cg">
+        <div class="cg-title" style="color:#60a5fa">🔗 Collegamento ai Settori</div>
+        <div class="cg-desc">
+          • <strong style="color:#e2e8f0">WTI Crude / Natural Gas</strong> → anticipa flussi su XLE (Energy)<br>
+          • <strong style="color:#e2e8f0">Copper</strong> → anticipa flussi su XLB (Materials) e XLI (Industrials)<br>
+          • <strong style="color:#e2e8f0">Gold</strong> → anticipa flussi su difensivi e XLU (Utilities)
+        </div>
+      </div>
+      <div class="cg">
+        <div class="cg-title" style="color:#f59e0b">⚠️ Limiti del COT</div>
+        <div class="cg-desc">
+          • Lag di 3–4 giorni dalla raccolta alla pubblicazione<br>
+          • Non cattura posizioni in equity diretta o ETF<br>
+          • Posizionamento estremo può persistere settimane prima del reversal<br>
+          • Usalo come <strong style="color:#e2e8f0">conferma</strong>, non come segnale primario
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ 7. WORKFLOW ══════════ -->
+  <div class="g-section">
+    <h3>🔄 7. Workflow Settimanale Operativo (30 minuti)</h3>
+    <div class="workflow">
+      <div class="wf-step">
+        <div class="wf-left"><div class="wf-num">1</div><div class="wf-line"></div></div>
+        <div class="wf-body">
+          <div class="wf-title">Domenica sera — riesegui lo script</div>
+          <div class="wf-detail">Apri il terminale: <code style="background:#0f172a;color:#a78bfa;padding:1px 6px;border-radius:3px">python sector_rotation.py</code> — si aggiorna tutto automaticamente in 2–3 minuti.</div>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-left"><div class="wf-num">2</div><div class="wf-line"></div></div>
+        <div class="wf-body">
+          <div class="wf-title">Controlla il regime (banner in cima)</div>
+          <div class="wf-detail">Il quadrante è cambiato? C'è il badge steepening? Se il regime si è spostato, aggiorna mentalmente la mappa dei settori strutturalmente favoriti. Questo ha priorità su tutto il resto.</div>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-left"><div class="wf-num">3</div><div class="wf-line"></div></div>
+        <div class="wf-body">
+          <div class="wf-title">Leggi i delta di score (Scoring tab)</div>
+          <div class="wf-detail">Quale settore è salito di score rispetto alla settimana scorsa? Il movimento da 2→3 o da 3→4 è il segnale operativo. Un settore già a 5/5 da 3 settimane è in trend, ma l'entry ottimale è già passata.</div>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-left"><div class="wf-num">4</div><div class="wf-line"></div></div>
+        <div class="wf-body">
+          <div class="wf-title">COT tab — conferma istituzionale</div>
+          <div class="wf-detail">Per i settori in miglioramento, verifica il COT. MM Net in aumento = il denaro "smart" si posiziona nella stessa direzione. Se contraddice lo score, abbassa la conviction e dimezza il sizing.</div>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-left"><div class="wf-num">5</div><div class="wf-line"></div></div>
+        <div class="wf-body">
+          <div class="wf-title">Charts tab — relative strength visiva</div>
+          <div class="wf-detail">Apri il grafico RS normalizzato. Una linea che risale da un minimo con pendenza crescente è il pattern ideale. Confronta la breadth: se la linea RS sale ma la breadth è sotto 40%, il movimento è fragile.</div>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-left"><div class="wf-num">6</div><div class="wf-line"></div></div>
+        <div class="wf-body">
+          <div class="wf-title">TradingView — setup tecnico (fuori dal dashboard)</div>
+          <div class="wf-detail">Per ogni settore a 4–5/5, apri il chart su TradingView. Cerca: (a) breakout da consolidazione con volume, (b) pullback Fibonacci 38–50% su primo strappo, (c) inverse head & shoulders su base settimanale. Definisci entry, stop e target <strong style="color:#e2e8f0">prima</strong> di comprare.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ 8. ENTRY DECISION ══════════ -->
+  <div class="g-section">
+    <h3>⚡ 8. Framework di Decisione Entry</h3>
+    <div class="entry-grid">
+      <div class="entry-card" style="border-top:3px solid #22c55e">
+        <h4 style="color:#22c55e">✅ Entra quando:</h4>
+        <ul>
+          <li>Score ≥ 4/5 questa settimana</li>
+          <li>Regime macro favorisce il settore</li>
+          <li>COT non contraddice (MM Net non in calo)</li>
+          <li>Setup tecnico pulito (breakout o pullback) su TradingView</li>
+          <li>Breadth > 40% e in risalita</li>
+        </ul>
+      </div>
+      <div class="entry-card" style="border-top:3px solid #ef4444">
+        <h4 style="color:#ef4444">❌ Non entrare quando:</h4>
+        <ul>
+          <li>Score ≥ 4/5 ma regime macro avverso</li>
+          <li>RS 4W positiva ma RS 12W fortemente negativa</li>
+          <li>Breadth < 30% (movimento concentrato su poche large cap)</li>
+          <li>COT in forte calo (distribuzione istituzionale)</li>
+          <li>Nessun setup tecnico identificabile (mercato in mezzo al niente)</li>
+        </ul>
+      </div>
+      <div class="entry-card" style="border-top:3px solid #3b82f6">
+        <h4 style="color:#60a5fa">📐 Sizing operativo:</h4>
+        <ul>
+          <li><strong style="color:#e2e8f0">Posizione base:</strong> 3–5% del portafoglio finanziario</li>
+          <li><strong style="color:#e2e8f0">Add-on 1:</strong> +2% se conferma con volume entro 2W</li>
+          <li><strong style="color:#e2e8f0">Add-on 2:</strong> +1% su ulteriore rottura di resistenza</li>
+          <li><strong style="color:#e2e8f0">Max esposizione settore:</strong> 8–10%</li>
+          <li><strong style="color:#e2e8f0">Stop loss:</strong> 7–8% dall'entry sull'ETF</li>
+        </ul>
+      </div>
+      <div class="entry-card" style="border-top:3px solid #a855f7">
+        <h4 style="color:#a855f7">🕰️ Orizzonte temporale:</h4>
+        <ul>
+          <li>Target: <strong style="color:#e2e8f0">3–9 mesi</strong> per catturare la rotation completa</li>
+          <li>Non uscire alla prima correzione del 5–8% — normale in un trend di settore</li>
+          <li>Trailing stop: dopo +15% porta lo stop a breakeven + 50% del gain</li>
+          <li>Segnale di uscita: score scende sotto 2/5 per 2 settimane consecutive</li>
+        </ul>
+      </div>
+    </div>
+    <div class="g-box amber">
+      <strong>Bias comportamentale da evitare:</strong> non entrare su un settore già a 5/5 da 6 settimane solo perché il dashboard lo mostra verde. L'opportunità è all'alba del trend (3→4), non a metà. Un settore già esploso ha il rischio/rendimento peggiore.
+    </div>
+  </div>
+
+  <!-- ══════════ 9. FONTI ══════════ -->
+  <div class="g-section">
+    <h3>📡 9. Fonti Dati e Risorse Esterne</h3>
+    <div class="sources">
+      <div class="src">
+        <div class="src-badge">GRATUITO — NO AUTH</div>
+        <div class="src-name">Yahoo Finance (yfinance)</div>
+        <div class="src-desc">Prezzi storici di tutti gli ETF settoriali e dei loro componenti. Base del calcolo RS, breadth e tutti i ritorni.</div>
+      </div>
+      <div class="src">
+        <div class="src-badge">GRATUITO — REGISTRAZIONE</div>
+        <div class="src-name">FRED API — St. Louis Fed</div>
+        <div class="src-url">fred.stlouisfed.org</div>
+        <div class="src-desc">Yield curve, HY spreads, VIX, LEI. Registrazione in 2 minuti, nessun costo. Chiave API via email immediata.</div>
+      </div>
+      <div class="src">
+        <div class="src-badge">GRATUITO — NO AUTH</div>
+        <div class="src-name">CFTC COT Report</div>
+        <div class="src-url">cftc.gov</div>
+        <div class="src-desc">Disaggregated Futures + Options Combined. Scaricato automaticamente dallo script ogni settimana.</div>
+      </div>
+      <div class="src">
+        <div class="src-badge">GRATUITO</div>
+        <div class="src-name">TradingView</div>
+        <div class="src-url">tradingview.com</div>
+        <div class="src-desc">Per il setup tecnico dopo che il dashboard identifica il settore. Costruisci il ratio XLV/SPY, XLE/SPY ecc. su timeframe settimanale.</div>
+      </div>
+      <div class="src">
+        <div class="src-badge">GRATUITO</div>
+        <div class="src-name">Unusual Whales</div>
+        <div class="src-url">unusualwhales.com</div>
+        <div class="src-desc">Block trades istituzionali sulle opzioni degli ETF settoriali. Complemento manuale al COT per leggere il posizionamento options.</div>
+      </div>
+      <div class="src">
+        <div class="src-badge">GRATUITO</div>
+        <div class="src-name">The Market Ear</div>
+        <div class="src-url">themarketear.com</div>
+        <div class="src-desc">Aggregatore di flow commentary dei desk GS/MS/JPM filtrati. Lettura quotidiana (5 min) per il contesto istituzionale.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ 10. ERRORI COMUNI ══════════ -->
+  <div class="g-section">
+    <h3>⚠️ 10. Errori Comuni da Evitare</h3>
+    <div class="g-box red">
+      <strong>1. Usare solo lo score ignorando il regime macro.</strong><br>
+      Un settore a 5/5 nel regime sbagliato è un segnale falso. Energy a 5/5 in piena recessione con HY spread al 7% è un rimbalzo nel downtrend, non una rotation.
+    </div>
+    <div class="g-box red">
+      <strong>2. Confondere ritorno assoluto con relative strength.</strong><br>
+      Un settore +5% in una settimana dove l'S&P sale del 6% sta sottoperformando. La RS è il numero che conta, non il ritorno assoluto.
+    </div>
+    <div class="g-box red">
+      <strong>3. Agire su un solo segnale settimana.</strong><br>
+      Un'unica settimana positiva è noise. Il segnale diventa azionabile quando la RS è positiva su 4W E 12W insieme, con breadth partecipante.
+    </div>
+    <div class="g-box red">
+      <strong>4. Inseguire il settore già in trend da mesi.</strong><br>
+      Se un settore è a 5/5 da 8 settimane, il grosso del movimento è già prezzato. La rotation del denaro istituzionale avviene nelle prime 4–8 settimane. Dopo, stai comprando da chi sta già vendendo.
+    </div>
+    <div class="g-box amber">
+      <strong>Regola finale:</strong> il dashboard identifica il <em>cosa</em> e il <em>quando in termini di settimane</em>. Il timing preciso dell'entry (al giorno) richiede il setup tecnico su TradingView. Non sostituire uno con l'altro.
+    </div>
+  </div>
+
+</div>
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+// ── TABS ─────────────────────────────────────────────────────
+const TABS = ['cruscotto','scoring','charts','table','cot','guide'];
+function goTab(name) {
+  TABS.forEach(id => {
+    document.querySelectorAll('.tab')[TABS.indexOf(id)].classList.toggle('active', id===name);
+    document.getElementById('t-'+id).classList.toggle('active', id===name);
+  });
+  if (name === 'charts') renderCharts();
+}
+
+// ── CHARTS ───────────────────────────────────────────────────
+const PALETTE = ['#3b82f6','#22c55e','#f59e0b','#ec4899','#a855f7','#06b6d4'];
+const DARK    = {paper_bgcolor:'#1e293b',plot_bgcolor:'#1e293b',
+                  font:{color:'#94a3b8',size:12},
+                  xaxis:{gridcolor:'#334155',showgrid:true},
+                  yaxis:{gridcolor:'#334155',showgrid:true},
+                  legend:{bgcolor:'#0f172a',bordercolor:'#334155'},
+                  margin:{t:10,r:16,b:48,l:60},
+                  hovermode:'x unified'};
+
+const rsSeries = [{"name": "XLK Technology", "dates": ["2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06", "2025-11-07", "2025-11-10", "2025-11-11", "2025-11-12", "2025-11-13", "2025-11-14", "2025-11-17", "2025-11-18", "2025-11-19", "2025-11-20", "2025-11-21", "2025-11-24", "2025-11-25", "2025-11-26", "2025-11-28", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-08", "2025-12-09", "2025-12-10", "2025-12-11", "2025-12-12", "2025-12-15", "2025-12-16", "2025-12-17", "2025-12-18", "2025-12-19", "2025-12-22", "2025-12-23", "2025-12-24", "2025-12-26", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-26", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30", "2026-02-02", "2026-02-03", "2026-02-04", "2026-02-05", "2026-02-06", "2026-02-09", "2026-02-10", "2026-02-11", "2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-23", "2026-02-24", "2026-02-25", "2026-02-26", "2026-02-27", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-11"], "values": [100.0, 98.53, 98.57, 97.64, 97.21, 98.16, 97.1, 97.35, 96.52, 97.06, 96.44, 95.68, 95.97, 94.4, 93.83, 94.67, 94.04, 94.5, 94.8, 95.27, 96.08, 95.97, 96.26, 96.78, 97.76, 98.1, 97.92, 97.19, 95.41, 94.63, 95.06, 93.98, 94.72, 95.89, 95.81, 95.9, 95.79, 95.95, 95.86, 95.67, 95.43, 95.48, 95.06, 95.82, 96.05, 94.56, 95.18, 95.45, 95.44, 94.75, 94.98, 95.17, 94.62, 94.84, 95.05, 95.16, 95.32, 96.22, 97.0, 95.66, 93.99, 94.42, 93.14, 90.99, 90.48, 92.37, 93.38, 93.1, 93.4, 92.37, 92.53, 92.33, 92.81, 92.59, 92.37, 91.76, 92.28, 93.26, 92.47, 91.44, 91.9, 91.36, 92.26, 93.01, 92.3, 93.14, 93.29, 93.86, 93.55, 93.37, 93.77, 94.03, 94.28, 94.84, 94.04, 94.32, 94.08, 93.98, 92.71, 92.48, 91.06, 92.24, 92.93, 93.59, 93.69, 94.1, 94.6, 94.31, 94.74, 95.79, 96.15, 96.92, 97.79, 98.1, 98.43, 99.17, 100.33, 99.29, 101.29, 101.34, 100.11, 100.92, 100.17, 101.38, 101.87, 103.29, 104.58, 104.69, 107.4, 108.52], "score": 5}, {"name": "XLE Energy", "dates": ["2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06", "2025-11-07", "2025-11-10", "2025-11-11", "2025-11-12", "2025-11-13", "2025-11-14", "2025-11-17", "2025-11-18", "2025-11-19", "2025-11-20", "2025-11-21", "2025-11-24", "2025-11-25", "2025-11-26", "2025-11-28", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-08", "2025-12-09", "2025-12-10", "2025-12-11", "2025-12-12", "2025-12-15", "2025-12-16", "2025-12-17", "2025-12-18", "2025-12-19", "2025-12-22", "2025-12-23", "2025-12-24", "2025-12-26", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-26", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30", "2026-02-02", "2026-02-03", "2026-02-04", "2026-02-05", "2026-02-06", "2026-02-09", "2026-02-10", "2026-02-11", "2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-23", "2026-02-24", "2026-02-25", "2026-02-26", "2026-02-27", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-11"], "values": [100.0, 100.11, 100.03, 102.09, 103.46, 102.79, 103.9, 102.39, 104.38, 106.17, 105.22, 106.95, 105.16, 105.58, 105.19, 103.38, 101.77, 101.84, 102.61, 104.08, 102.54, 104.1, 104.47, 103.84, 103.02, 103.74, 104.14, 103.41, 103.51, 102.93, 100.06, 103.42, 101.15, 100.24, 100.66, 100.85, 100.21, 99.83, 101.14, 102.04, 102.23, 104.19, 106.31, 102.86, 102.04, 105.26, 104.84, 103.94, 105.63, 108.54, 107.24, 107.51, 109.53, 110.9, 110.69, 111.28, 110.78, 111.35, 112.22, 113.47, 115.03, 112.22, 116.84, 120.04, 120.13, 120.22, 120.52, 120.7, 123.89, 123.54, 124.3, 122.73, 124.46, 125.7, 124.11, 126.01, 124.99, 123.43, 124.52, 127.1, 129.57, 129.53, 127.87, 129.26, 131.18, 129.47, 128.02, 131.36, 134.63, 135.84, 134.94, 136.0, 137.74, 140.28, 142.2, 142.4, 145.78, 144.33, 149.26, 154.41, 153.45, 147.43, 140.86, 141.4, 141.75, 142.83, 134.4, 131.97, 131.16, 130.28, 126.09, 124.68, 126.21, 121.26, 121.61, 124.19, 124.42, 125.88, 124.67, 124.24, 126.91, 129.83, 129.91, 127.81, 129.46, 128.56, 121.57, 119.7, 118.19, 120.64], "score": 1}, {"name": "XLF Financials", "dates": ["2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06", "2025-11-07", "2025-11-10", "2025-11-11", "2025-11-12", "2025-11-13", "2025-11-14", "2025-11-17", "2025-11-18", "2025-11-19", "2025-11-20", "2025-11-21", "2025-11-24", "2025-11-25", "2025-11-26", "2025-11-28", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-08", "2025-12-09", "2025-12-10", "2025-12-11", "2025-12-12", "2025-12-15", "2025-12-16", "2025-12-17", "2025-12-18", "2025-12-19", "2025-12-22", "2025-12-23", "2025-12-24", "2025-12-26", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-26", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30", "2026-02-02", "2026-02-03", "2026-02-04", "2026-02-05", "2026-02-06", "2026-02-09", "2026-02-10", "2026-02-11", "2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-23", "2026-02-24", "2026-02-25", "2026-02-26", "2026-02-27", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-11"], "values": [100.0, 101.72, 101.72, 102.45, 103.07, 101.86, 102.08, 102.91, 103.3, 102.28, 101.28, 101.98, 101.96, 102.63, 102.73, 101.68, 101.99, 102.08, 102.26, 101.88, 101.59, 102.6, 102.74, 102.58, 102.51, 102.21, 102.7, 104.33, 105.61, 105.85, 105.46, 106.62, 105.65, 105.27, 105.9, 105.63, 105.83, 105.63, 105.44, 105.3, 105.3, 105.41, 107.0, 106.88, 105.73, 106.29, 105.27, 104.27, 102.48, 102.83, 102.97, 103.19, 102.94, 102.26, 102.39, 100.95, 101.08, 99.91, 99.9, 101.16, 101.25, 101.86, 101.78, 103.1, 103.1, 103.0, 101.91, 101.44, 99.93, 99.47, 99.33, 100.22, 100.46, 99.89, 99.82, 97.46, 97.24, 98.11, 99.85, 98.29, 97.99, 98.69, 98.55, 98.58, 98.6, 97.28, 96.92, 96.23, 96.11, 96.78, 96.61, 96.86, 97.06, 97.34, 98.94, 98.8, 99.15, 98.72, 99.93, 99.09, 100.57, 99.77, 99.16, 99.25, 99.48, 99.44, 99.53, 99.22, 98.2, 98.95, 97.99, 97.95, 97.45, 97.03, 97.59, 97.62, 96.47, 96.09, 94.65, 95.21, 95.75, 95.89, 95.33, 94.68, 94.41, 93.67, 92.84, 92.6, 91.29, 90.96], "score": 1}, {"name": "XLI Industrials", "dates": ["2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06", "2025-11-07", "2025-11-10", "2025-11-11", "2025-11-12", "2025-11-13", "2025-11-14", "2025-11-17", "2025-11-18", "2025-11-19", "2025-11-20", "2025-11-21", "2025-11-24", "2025-11-25", "2025-11-26", "2025-11-28", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-08", "2025-12-09", "2025-12-10", "2025-12-11", "2025-12-12", "2025-12-15", "2025-12-16", "2025-12-17", "2025-12-18", "2025-12-19", "2025-12-22", "2025-12-23", "2025-12-24", "2025-12-26", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-26", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30", "2026-02-02", "2026-02-03", "2026-02-04", "2026-02-05", "2026-02-06", "2026-02-09", "2026-02-10", "2026-02-11", "2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-23", "2026-02-24", "2026-02-25", "2026-02-26", "2026-02-27", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-11"], "values": [100.0, 100.03, 100.07, 100.75, 101.14, 100.15, 99.95, 99.99, 100.1, 100.12, 100.07, 100.47, 100.42, 100.27, 100.49, 99.27, 99.61, 99.5, 99.53, 98.53, 99.2, 99.8, 100.24, 99.77, 99.95, 99.31, 100.45, 101.29, 101.75, 102.07, 101.74, 101.2, 101.1, 101.05, 101.54, 101.04, 101.01, 100.84, 100.98, 100.81, 100.72, 102.39, 102.92, 103.7, 102.08, 102.86, 103.3, 103.93, 104.68, 105.36, 106.04, 106.85, 106.86, 107.47, 106.36, 105.5, 105.07, 105.09, 104.51, 105.82, 105.86, 106.67, 108.49, 109.3, 110.02, 111.03, 110.83, 111.26, 111.88, 112.28, 113.12, 113.53, 112.93, 114.07, 113.83, 113.44, 114.01, 112.17, 113.51, 114.34, 115.41, 114.18, 113.73, 111.82, 111.91, 111.59, 111.17, 110.96, 109.85, 110.08, 109.9, 109.91, 110.58, 110.1, 110.07, 110.17, 111.18, 111.31, 110.7, 111.18, 109.74, 110.12, 111.12, 110.58, 110.62, 110.35, 111.65, 112.15, 111.78, 111.48, 110.54, 108.3, 107.5, 108.2, 108.66, 107.82, 106.49, 108.8, 106.97, 106.82, 106.39, 105.75, 107.57, 106.28, 105.45, 105.48, 106.73, 105.32, 103.98, 104.82], "score": 1}, {"name": "XLB Materials", "dates": ["2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06", "2025-11-07", "2025-11-10", "2025-11-11", "2025-11-12", "2025-11-13", "2025-11-14", "2025-11-17", "2025-11-18", "2025-11-19", "2025-11-20", "2025-11-21", "2025-11-24", "2025-11-25", "2025-11-26", "2025-11-28", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-08", "2025-12-09", "2025-12-10", "2025-12-11", "2025-12-12", "2025-12-15", "2025-12-16", "2025-12-17", "2025-12-18", "2025-12-19", "2025-12-22", "2025-12-23", "2025-12-24", "2025-12-26", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-26", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30", "2026-02-02", "2026-02-03", "2026-02-04", "2026-02-05", "2026-02-06", "2026-02-09", "2026-02-10", "2026-02-11", "2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-23", "2026-02-24", "2026-02-25", "2026-02-26", "2026-02-27", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-11"], "values": [100.0, 100.7, 100.94, 101.54, 102.66, 102.03, 102.86, 103.53, 104.58, 103.65, 103.03, 103.99, 103.85, 103.89, 105.16, 103.84, 104.41, 104.97, 105.0, 105.22, 104.07, 104.44, 103.75, 103.22, 102.09, 101.97, 103.28, 105.09, 106.31, 106.4, 106.4, 108.04, 107.19, 106.69, 107.28, 106.98, 106.82, 107.46, 106.98, 107.08, 106.99, 108.6, 108.96, 110.46, 108.9, 110.83, 111.86, 112.29, 113.0, 113.6, 113.78, 113.23, 114.42, 115.57, 115.63, 116.64, 116.19, 115.61, 115.55, 115.9, 114.55, 114.86, 118.29, 121.65, 119.89, 119.99, 120.97, 122.98, 124.66, 124.75, 125.8, 124.16, 124.29, 124.17, 123.58, 124.85, 124.89, 123.15, 123.7, 125.25, 124.81, 122.82, 121.91, 120.02, 119.3, 118.57, 118.5, 118.55, 119.99, 119.49, 118.79, 118.76, 117.91, 116.4, 116.21, 116.92, 119.53, 121.23, 122.63, 124.3, 125.18, 123.82, 124.1, 123.87, 122.82, 122.42, 123.36, 122.47, 123.24, 122.58, 120.69, 118.29, 118.85, 117.73, 118.76, 118.49, 117.44, 117.85, 117.19, 116.68, 116.39, 115.41, 115.41, 114.83, 113.68, 114.73, 115.09, 113.22, 112.71, 114.01], "score": 1}, {"name": "XLRE Real Estate", "dates": ["2025-11-03", "2025-11-04", "2025-11-05", "2025-11-06", "2025-11-07", "2025-11-10", "2025-11-11", "2025-11-12", "2025-11-13", "2025-11-14", "2025-11-17", "2025-11-18", "2025-11-19", "2025-11-20", "2025-11-21", "2025-11-24", "2025-11-25", "2025-11-26", "2025-11-28", "2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-08", "2025-12-09", "2025-12-10", "2025-12-11", "2025-12-12", "2025-12-15", "2025-12-16", "2025-12-17", "2025-12-18", "2025-12-19", "2025-12-22", "2025-12-23", "2025-12-24", "2025-12-26", "2025-12-29", "2025-12-30", "2025-12-31", "2026-01-02", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-20", "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-26", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30", "2026-02-02", "2026-02-03", "2026-02-04", "2026-02-05", "2026-02-06", "2026-02-09", "2026-02-10", "2026-02-11", "2026-02-12", "2026-02-13", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-23", "2026-02-24", "2026-02-25", "2026-02-26", "2026-02-27", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-11"], "values": [100.0, 101.47, 101.1, 101.69, 102.94, 101.29, 102.18, 101.32, 101.68, 102.0, 102.28, 103.52, 102.32, 103.54, 103.87, 102.51, 102.37, 102.11, 102.05, 101.09, 100.66, 100.51, 100.26, 100.05, 99.74, 99.24, 98.78, 99.08, 100.04, 100.58, 99.97, 101.53, 100.15, 98.88, 99.0, 98.52, 98.81, 99.02, 99.64, 99.99, 99.82, 99.71, 99.17, 99.24, 98.2, 98.94, 98.43, 98.57, 99.52, 101.14, 101.62, 102.95, 103.07, 102.26, 100.73, 100.96, 100.38, 100.05, 99.09, 100.55, 101.0, 99.36, 99.84, 101.93, 102.64, 102.57, 102.71, 104.42, 104.34, 106.15, 107.64, 108.55, 106.56, 106.47, 106.58, 107.81, 107.32, 105.72, 106.78, 107.81, 107.94, 108.36, 107.75, 107.31, 107.61, 106.9, 106.92, 105.78, 106.73, 107.62, 107.36, 107.43, 107.17, 107.18, 105.29, 104.97, 104.47, 103.84, 105.78, 106.87, 107.76, 106.33, 105.85, 107.46, 107.34, 107.19, 106.33, 106.44, 106.73, 106.2, 105.92, 105.04, 105.75, 106.08, 106.68, 105.31, 103.49, 105.09, 103.98, 102.99, 104.49, 103.87, 104.64, 104.16, 103.98, 103.36, 103.26, 102.79, 101.97, 101.92], "score": 1}];
+const hmData   = {"sectors": ["Technology", "Energy", "Financials", "Industrials", "Materials", "Real Estate", "Staples", "Healthcare", "Utilities", "Discretionary"], "r1w": [7.45, -4.03, -0.69, 1.63, 1.63, 0.85, -0.96, -1.25, -2.48, 1.07], "r4w": [20.3, 1.97, -1.05, 1.08, 0.69, 2.57, 2.19, -3.59, -2.69, 2.49], "r12w": [27.68, 5.66, -0.29, 0.89, -1.33, 3.09, -6.46, -8.63, -2.07, 2.92], "rs4w": [12.86, -4.33, -7.17, -5.17, -5.53, -3.77, -4.13, -9.55, -8.71, -3.85], "rs12w": [17.27, -2.95, -8.42, -7.34, -9.37, -5.31, -14.09, -16.07, -10.05, -5.47]};
+const macroD   = {"yield_curve": {"dates": ["2026-02-26", "2026-02-27", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08"], "values": [0.6, 0.59, 0.58, 0.55, 0.55, 0.56, 0.59, 0.56, 0.58, 0.57, 0.51, 0.55, 0.55, 0.52, 0.5, 0.46, 0.51, 0.51, 0.49, 0.49, 0.46, 0.56, 0.53, 0.51, 0.52, 0.52, 0.51, 0.5, 0.52, 0.5, 0.51, 0.5, 0.52, 0.5, 0.53, 0.54, 0.55, 0.54, 0.52, 0.51, 0.51, 0.53, 0.57, 0.52, 0.5, 0.52, 0.51, 0.5, 0.5, 0.49, 0.49, 0.48], "label": "10Y-2Y Spread"}, "hy_spreads": {"dates": ["2026-02-27", "2026-02-28", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08"], "values": [3.1, 3.12, 3.03, 3.08, 2.97, 3.0, 3.13, 3.19, 3.06, 3.09, 3.17, 3.28, 3.27, 3.22, 3.2, 3.27, 3.24, 3.19, 3.19, 3.17, 3.21, 3.42, 3.46, 3.28, 3.16, 3.17, 3.13, 3.05, 3.12, 2.94, 2.9, 2.94, 2.95, 2.84, 2.85, 2.86, 2.83, 2.87, 2.85, 2.84, 2.86, 2.86, 2.84, 2.85, 2.82, 2.83, 2.77, 2.78, 2.77, 2.75, 2.79, 2.81], "label": "HY Spreads OAS"}, "vix": {"dates": ["2026-02-25", "2026-02-26", "2026-02-27", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08"], "values": [17.93, 18.63, 19.86, 21.44, 23.57, 21.15, 23.75, 29.49, 25.5, 24.93, 24.23, 27.29, 27.19, 23.51, 22.37, 25.09, 24.06, 26.78, 26.15, 26.95, 25.33, 27.44, 31.05, 30.61, 25.25, 24.54, 23.87, 24.17, 25.78, 21.04, 19.49, 19.23, 19.12, 18.36, 18.17, 17.94, 17.48, 18.87, 19.5, 18.92, 19.31, 18.71, 18.02, 17.83, 18.81, 16.89, 16.99, 18.29, 17.38, 17.39, 17.08, 17.19], "label": "VIX"}, "cpi": {"dates": ["2024-11-01", "2024-12-01", "2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01", "2025-05-01", "2025-06-01", "2025-07-01", "2025-08-01", "2025-09-01", "2025-11-01", "2025-12-01", "2026-01-01", "2026-02-01", "2026-03-01"], "values": [316.528, 317.604, 318.961, 319.679, 319.785, 320.302, 320.62, 321.435, 322.169, 323.291, 324.245, 325.063, 326.031, 326.588, 327.46, 330.293], "label": "CPI USA"}, "core_pce": {"dates": ["2024-11-01", "2024-12-01", "2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01", "2025-05-01", "2025-06-01", "2025-07-01", "2025-08-01", "2025-09-01", "2025-10-01", "2025-11-01", "2025-12-01", "2026-01-01", "2026-02-01", "2026-03-01"], "values": [123.962, 124.196, 124.587, 125.145, 125.267, 125.502, 125.79, 126.121, 126.43, 126.714, 126.954, 127.243, 127.469, 127.886, 128.429, 128.901, 129.279], "label": "Core PCE"}, "indpro": {"dates": ["2024-11-01", "2024-12-01", "2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01", "2025-05-01", "2025-06-01", "2025-07-01", "2025-08-01", "2025-09-01", "2025-10-01", "2025-11-01", "2025-12-01", "2026-01-01", "2026-02-01", "2026-03-01"], "values": [99.293, 100.327, 100.065, 101.099, 101.04, 101.128, 100.966, 101.478, 101.894, 101.625, 101.668, 101.219, 101.081, 101.611, 101.595, 102.344, 101.79], "label": "Industrial Production"}, "unrate": {"dates": ["2024-11-01", "2024-12-01", "2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01", "2025-05-01", "2025-06-01", "2025-07-01", "2025-08-01", "2025-09-01", "2025-11-01", "2025-12-01", "2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01"], "values": [4.2, 4.1, 4.0, 4.2, 4.2, 4.2, 4.3, 4.1, 4.3, 4.3, 4.4, 4.5, 4.4, 4.3, 4.4, 4.3, 4.3], "label": "Tasso Disoccupazione USA"}, "chicago_fed": {"dates": ["2024-11-01", "2024-12-01", "2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01", "2025-05-01", "2025-06-01", "2025-07-01", "2025-08-01", "2025-09-01", "2025-10-01", "2025-11-01", "2025-12-01", "2026-01-01", "2026-02-01", "2026-03-01"], "values": [-0.06, 0.33, -0.5, 0.39, 0.16, -0.37, -0.29, -0.07, 0.01, -0.36, -0.31, -0.49, -0.27, -0.02, 0.08, 0.03, -0.2], "label": "Chicago Fed Activity"}};
+
+let rendered = false;
+function renderCharts() {
+  if (rendered) return;
+  rendered = true;
+
+  // ── RS Chart ─────────────────────────────────────
+  if (rsSeries.length) {
+    const traces = rsSeries.map((s,i) => ({
+      x:s.dates, y:s.values, type:'scatter', mode:'lines',
+      name:s.name, line:{color:PALETTE[i%PALETTE.length],width:2.5}
+    }));
+    traces.push({
+      x:rsSeries[0].dates,
+      y:rsSeries[0].dates.map(()=>100),
+      name:'SPY baseline 100', type:'scatter', mode:'lines',
+      line:{color:'#475569',width:1,dash:'dash'}, hoverinfo:'skip'
+    });
+    Plotly.newPlot('rs-chart', traces, {
+      ...DARK,
+      yaxis:{...DARK.yaxis, title:'RS Normalizzato (100 = inizio periodo)'}
+    });
+  }
+
+  // ── Heatmap ─────────────────────────────────────
+  const metrics = ['Ret 1W','Ret 4W','Ret 12W','RS 4W vs SPY','RS 12W vs SPY'];
+  const zVals   = [hmData.r1w,hmData.r4w,hmData.r12w,hmData.rs4w,hmData.rs12w];
+  const zText   = zVals.map(row =>
+    row.map(v => v!=null ? (v>=0?'+':'')+v.toFixed(1)+'%' : '—')
+  );
+  Plotly.newPlot('hm-chart', [{
+    type:'heatmap', z:zVals, x:hmData.sectors, y:metrics,
+    text:zText, texttemplate:'%{text}',
+    colorscale:[[0,'#7f1d1d'],[0.4,'#ef4444'],[0.49,'#1e293b'],
+                [0.51,'#1e293b'],[0.6,'#22c55e'],[1,'#14532d']],
+    zmid:0, showscale:true,
+    colorbar:{bgcolor:'#1e293b',tickfont:{color:'#94a3b8'}},
+  }], {
+    paper_bgcolor:'#1e293b', plot_bgcolor:'#1e293b',
+    font:{color:'#94a3b8',size:11},
+    margin:{t:10,r:80,b:80,l:130},
+    xaxis:{tickfont:{size:12,color:'#e2e8f0'}},
+    yaxis:{tickfont:{size:11}},
+  });
+
+  // ── Macro Chart ─────────────────────────────────
+  const yc = macroD.yield_curve;
+  const hy = macroD.hy_spreads;
+  if (yc && hy) {
+    Plotly.newPlot('mc-chart', [
+      {x:yc.dates,y:yc.values,name:yc.label,type:'scatter',mode:'lines',
+        line:{color:'#3b82f6',width:2},yaxis:'y'},
+      {x:hy.dates,y:hy.values,name:hy.label,type:'scatter',mode:'lines',
+        line:{color:'#ef4444',width:2},yaxis:'y2'},
+    ], {
+      paper_bgcolor:'#1e293b', plot_bgcolor:'#1e293b',
+      font:{color:'#94a3b8',size:12},
+      xaxis:{gridcolor:'#334155'},
+      yaxis:{title:'Yield Curve (%)',gridcolor:'#334155',zeroline:true,zerolinecolor:'#475569'},
+      yaxis2:{title:'HY Spread (%)',overlaying:'y',side:'right',gridcolor:'transparent'},
+      legend:{bgcolor:'#0f172a',bordercolor:'#334155'},
+      shapes:[{type:'line',x0:yc.dates[0],x1:yc.dates[yc.dates.length-1],
+                y0:0,y1:0,yref:'y',line:{color:'#475569',dash:'dot',width:1}}],
+      margin:{t:10,r:80,b:48,l:60},
+      hovermode:'x unified',
+    });
+  } else {
+    document.getElementById('macro-box').innerHTML =
+      '<p style="color:#64748b;padding:20px;text-align:center">⚠️ Configura FRED_API_KEY per i grafici macro.</p>';
+  }
+}
+</script>
+</body>
+</html>
