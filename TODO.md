@@ -14,26 +14,23 @@ Aggiornato: 11 maggio 2026
 
 ---
 
-## Sprint 1 — Fix bug critici + Setup GitHub (PROSSIMO)
+## Sprint 1 — Fix bug critici + Setup GitHub ✅ COMPLETATO
 
-### Fix bug (prima del deploy)
-- [ ] **Bug #1:** Fix `fetch_extra_assets()` — `float(Series)` error su yfinance 1.3.0
-      Causa: single-ticker download restituisce DataFrame non Series
-      Fix: `.item()` o `.squeeze()` su `s.iloc[-1]`
-- [ ] **Bug #2:** Fix `fetch_cot()` — URL CFTC non più risponde con zip valido
-      Verificare URL attuale, aggiungere User-Agent, trovare alternativa se necessario
-- [ ] **Bug #3:** Fix HES delisted in `COMPONENTS['XLE']` — sostituire con DVN o HAL
+### Fix bug
+- [x] **Bug #1:** Fix `fetch_extra_assets()` — `.squeeze()` su yfinance 1.3.0
+- [x] **Bug #2:** Fix `fetch_cot()` — nuovo URL CFTC `fut_disagg_txt_YYYY.zip` + colonna `Report_Date_as_YYYY-MM-DD`
+- [x] **Bug #3:** HES delisted → sostituito con DVN in XLE components
 
 ### GitHub + produzione
-- [ ] Creare repository GitHub `sector-rotation`
-- [ ] Creare `.github/workflows/update_dashboard.yml`
-- [ ] Inizializzare Git localmente, primo commit, push
-- [ ] Abilitare GitHub Pages su branch `main` folder `/docs`
-- [ ] Generare Gmail App Password
-- [ ] Configurare Secrets su GitHub (FRED_API_KEY, EMAIL_*)
-- [ ] Lanciare primo workflow manuale
-- [ ] Verificare mail + sito online
-- [ ] SPRINT_1_REPORT.md con URL pubblico
+- [x] Creato repository GitHub `zlatandodo/askdodo`
+- [x] Creato `.github/workflows/update_dashboard.yml`
+- [x] Git init, primo commit, push
+- [x] GitHub Pages abilitato su `main` / `/docs`
+- [x] Gmail App Password configurata
+- [x] Secrets configurati (FRED_API_KEY, EMAIL_*)
+- [x] Primo workflow manuale lanciato e completato con successo ✅
+- [x] Sito online: https://zlatandodo.github.io/askdodo/
+- [x] SPRINT_1_REPORT.md
 
 ---
 
