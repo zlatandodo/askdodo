@@ -54,6 +54,25 @@ SECTORS = {
     'XLY':  'Discretionary',
 }
 
+# ETF Tematici — universo separato dai SPDR settoriali
+# Filtro qualità automatico: AUM > $300M e volume medio > $10M/giorno
+THEMATICS = {
+    'BOTZ': 'AI & Robotics',
+    'SMH':  'Semiconductors',
+    'CIBR': 'Cybersecurity',
+    'IGV':  'Software',
+    'SKYY': 'Cloud Computing',
+    'XBI':  'Biotech',
+    'ICLN': 'Clean Energy',
+    'URA':  'Uranium / Nuclear',
+    'ITA':  'Aerospace & Defense',
+    'GDX':  'Gold Miners',
+    'PAVE': 'Infrastructure USA',
+    'LIT':  'Lithium & Battery',
+    'EEM':  'Emerging Markets',
+    'DRIV': 'Autonomous & Drones',
+}
+
 # ── Asset addizionali per Cruscotto di Controllo ──────────────
 # Yahoo Finance tickers
 EXTRA_ASSETS = {
@@ -114,23 +133,38 @@ FRED_SERIES = {
 #  DATA FETCHING
 # ═══════════════════════════════════════════════════════════════
 
-def fetch_sector_prices():
-    """Scarica prezzi ETF settoriali + SPY su 52 settimane via yfinance."""
+def _fetch_etf_prices(tickers: list):
+    """Helper generico: scarica prezzi close su ~380 giorni per una lista di ticker."""
     import yfinance as yf
-    print("  ↳ ETF prices (Yahoo Finance)...")
-    tickers = list(SECTORS.keys()) + ['SPY', 'GLD', 'TLT']
+    all_t = list(dict.fromkeys(tickers + ['SPY']))  # SPY sempre presente, no duplicati
     end   = datetime.now()
     start = end - timedelta(days=380)
-    data  = yf.download(tickers, start=start, end=end,
+    data  = yf.download(all_t, start=start, end=end,
                         progress=False, auto_adjust=True)['Close']
-    # Drop columns with >30% NaN
-    data = data.dropna(axis=1, thresh=int(len(data)*0.7))
-    return data
+    return data.dropna(axis=1, thresh=int(len(data) * 0.7))
 
 
-def calc_metrics(prices):
-    """Calcola relative strength, momentum, breadth-proxy e oscillatori."""
+def fetch_sector_prices():
+    """Scarica prezzi ETF settoriali + SPY su 52 settimane via yfinance."""
+    print("  ↳ ETF prices (Yahoo Finance)...")
+    return _fetch_etf_prices(list(SECTORS.keys()) + ['GLD', 'TLT'])
+
+
+def fetch_thematic_prices(valid_tickers: list):
+    """Scarica prezzi ETF tematici (già filtrati per qualità)."""
+    print("  ↳ Thematic ETF prices...")
+    return _fetch_etf_prices(valid_tickers)
+
+
+def calc_metrics(prices, ticker_dict=None):
+    """Calcola relative strength, momentum, breadth-proxy e oscillatori.
+
+    ticker_dict: dict {ticker: name}. Default: SECTORS.
+    Riutilizzabile per qualsiasi universo ETF (tematici, settoriali, custom).
+    """
     import numpy as np, pandas as pd
+    if ticker_dict is None:
+        ticker_dict = SECTORS
     spy = prices['SPY']
 
     def safe_ret(series, lookback):
@@ -138,7 +172,7 @@ def calc_metrics(prices):
         return round((series.iloc[-1] / series.iloc[-lookback] - 1) * 100, 2)
 
     results = {}
-    for ticker, name in SECTORS.items():
+    for ticker, name in ticker_dict.items():
         if ticker not in prices.columns:
             continue
         p   = prices[ticker].dropna()
@@ -574,6 +608,30 @@ def fetch_etf_flows(tickers: list) -> dict:
         print(f"    Cache flows non salvata: {e}")
 
     return flows
+
+
+def filter_quality_etfs(tickers: list, min_aum_m: float = 300, min_vol_m: float = 10) -> tuple:
+    """Filtra ETF per qualità: AUM > min_aum_m M$ e volume medio > min_vol_m M$/giorno.
+
+    Returns (valid: list, excluded: list[tuple(ticker, motivo)]).
+    ETF che non passano il filtro vengono esclusi dall'universo tematici.
+    """
+    import yfinance as yf
+    valid, excluded = [], []
+    for ticker in tickers:
+        try:
+            info    = yf.Ticker(ticker).info
+            aum     = (info.get('totalAssets') or 0) / 1e6
+            nav     = info.get('navPrice') or info.get('regularMarketPrice') or 0
+            avg_vol = (info.get('averageVolume') or 0) * nav / 1e6
+            if aum >= min_aum_m and avg_vol >= min_vol_m:
+                valid.append(ticker)
+            else:
+                reason = f"AUM={aum:.0f}M$ · vol={avg_vol:.1f}M$/giorno"
+                excluded.append((ticker, reason))
+        except Exception as e:
+            excluded.append((ticker, str(e)))
+    return valid, excluded
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1039,7 +1097,8 @@ def _nan_safe(v, decimals=2):
     try: return round(float(v), decimals)
     except: return None
 
-def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, assets, naaim=None):
+def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, assets, naaim=None,
+                  thematic_metrics=None, thematic_scores=None, thematic_excluded=None):
     import math
 
     updated = datetime.now().strftime('%d %B %Y — %H:%M')
@@ -1229,6 +1288,101 @@ def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, ass
             Soglie: &lt;40 capitolazione (opportunità) · &gt;90 all-in (rischio top)
           </div>
         </div>'''
+
+    # ── Thematic ETF cards ───────────────────────────────────────
+    thematic_cards_html = ''
+    thematic_table_rows = ''
+    if thematic_metrics and thematic_scores:
+        sorted_th = sorted(
+            [(t, m, thematic_scores.get(t, {})) for t, m in thematic_metrics.items()],
+            key=lambda x: x[2].get('score', 0), reverse=True
+        )
+        for ticker, m, sc in sorted_th:
+            score   = sc.get('score', 0)
+            signal  = sc.get('signal', '—')
+            color   = sc.get('color', '#666')
+            details = sc.get('details', [])
+
+            det_html = ''.join(
+                f'<div class="det-row">'
+                f'<span class="chk {"ok" if ok else "no"}">{"✓" if ok else "✗"}</span>'
+                f'<span class="det-lbl">{lbl}</span>'
+                f'<span class="det-val">{val}</span>'
+                f'</div>'
+                for lbl, sym, val, ok in details
+            )
+
+            def th_pct_str(v):
+                import math
+                if v is None or (isinstance(v, float) and math.isnan(v)): return '—'
+                return f"{'+'if v>=0 else ''}{v}%"
+
+            def th_pct_color(v):
+                import math
+                if v is None or (isinstance(v, float) and math.isnan(v)): return '#64748b'
+                return '#22c55e' if v >= 0 else '#ef4444'
+
+            bars = '█' * score + '░' * (6 - score)
+            thematic_cards_html += f'''
+        <div class="card" style="border-top:4px solid {color}">
+          <div class="card-hdr">
+            <div>
+              <span class="tk">{ticker}</span>
+              <div class="tk-name">{m.get('name', ticker)}</div>
+            </div>
+            <div style="text-align:center">
+              <div class="score-dot" style="background:{color}">{score}/6</div>
+              <div class="sig" style="color:{color}">{signal}</div>
+            </div>
+          </div>
+          <div class="m-grid">
+            <div class="m-cell">
+              <div class="m-lbl">RS 4W</div>
+              <div class="m-val" style="color:{th_pct_color(m.get('rs4w'))}">{th_pct_str(m.get('rs4w'))}</div>
+            </div>
+            <div class="m-cell">
+              <div class="m-lbl">RS 12W</div>
+              <div class="m-val" style="color:{th_pct_color(m.get('rs12w'))}">{th_pct_str(m.get('rs12w'))}</div>
+            </div>
+            <div class="m-cell">
+              <div class="m-lbl">RS 26W</div>
+              <div class="m-val" style="color:{th_pct_color(m.get('rs26w'))}">{th_pct_str(m.get('rs26w'))}</div>
+            </div>
+            <div class="m-cell">
+              <div class="m-lbl">Trend</div>
+              <div class="m-val" style="font-size:12px;color:{'#22c55e' if m.get('ratio_trend')=='UP' else '#ef4444' if m.get('ratio_trend')=='DOWN' else '#94a3b8'}">{m.get('ratio_trend','—')}</div>
+            </div>
+          </div>
+          <div style="font-family:monospace;font-size:11px;color:#475569;margin:6px 0">[{bars}]</div>
+          <div class="det-sect">{det_html}</div>
+        </div>'''
+
+            thematic_table_rows += f'''<tr>
+              <td style="font-weight:700;color:#f1f5f9">{ticker}</td>
+              <td style="color:#94a3b8">{m.get('name', ticker)}</td>
+              <td><span class="score-pill" style="background:{color}">{score}/6</span></td>
+              <td style="color:{color};font-weight:700">{signal}</td>
+              <td style="color:{th_pct_color(m.get('r1w'))}">{th_pct_str(m.get('r1w'))}</td>
+              <td style="color:{th_pct_color(m.get('r4w'))}">{th_pct_str(m.get('r4w'))}</td>
+              <td style="color:{th_pct_color(m.get('rs4w'))}">{th_pct_str(m.get('rs4w'))}</td>
+              <td style="color:{th_pct_color(m.get('rs12w'))}">{th_pct_str(m.get('rs12w'))}</td>
+              <td style="color:{th_pct_color(m.get('rs26w'))}">{th_pct_str(m.get('rs26w'))}</td>
+              <td style="color:{'#22c55e' if m.get('ratio_trend')=='UP' else '#ef4444' if m.get('ratio_trend')=='DOWN' else '#475569'}">{m.get('ratio_trend','—')}</td>
+              <td style="color:#94a3b8">{round(m.get('rsi_ratio', 0), 1)}</td>
+            </tr>'''
+
+        # Riga ETF esclusi dal filtro qualità
+        if thematic_excluded:
+            excl_html = ' '.join(
+                f'<span style="background:#1e293b;border:1px solid #334155;color:#64748b;'
+                f'padding:3px 9px;border-radius:8px;font-size:11px">'
+                f'{t} <span style="color:#475569">{r}</span></span>'
+                for t, r in thematic_excluded
+            )
+        else:
+            excl_html = '<span style="color:#475569">Tutti i tematici hanno passato il filtro qualità</span>'
+    else:
+        excl_html = ''
 
     # ── Settori favoriti dal quadrante (per banner sopra cards) ──
     favored_html = ' '.join(f'<span class="tag green">{t}</span>'
@@ -1596,6 +1750,7 @@ tr:hover td{{background:#253047}}
   <div class="tab" onclick="goTab('charts')">📈 Charts</div>
   <div class="tab" onclick="goTab('table')">📋 Tabella</div>
   <div class="tab" onclick="goTab('cot')">🏦 COT Multi-Asset</div>
+  <div class="tab" onclick="goTab('tematici')">🚀 Tematici</div>
   <div class="tab" onclick="goTab('guide')">📖 Guida</div>
 </div>
 
@@ -1659,6 +1814,38 @@ tr:hover td{{background:#253047}}
     <span style="color:#ef4444">Short covering</span> (net negativo ma in risalita) = segnale spesso più forte del long building.
   </p>
   <div class="cot-grid">{cot_html}</div>
+</div>
+
+<!-- TEMATICI TAB -->
+<div id="t-tematici" class="tab-content">
+  <div style="margin-bottom:16px">
+    <div style="font-size:13px;color:#64748b;line-height:1.7;margin-bottom:8px">
+      Universo ETF tematici monitorati — scoring identico ai settori SPDR (0–6/6).
+      Filtro qualità: AUM &gt;$300M e volume medio &gt;$10M/giorno.
+      Breadth non disponibile (no componenti mappati).
+    </div>
+    <div style="font-size:12px;color:#475569">
+      ⚠️ Esclusi dal filtro qualità: {excl_html}
+    </div>
+  </div>
+  {'<div class="grid">' + thematic_cards_html + '</div>' if thematic_cards_html else
+   '<div style="color:#64748b;padding:40px;text-align:center">Nessun ETF tematico disponibile questa settimana.</div>'}
+  {'''<div style="margin-top:24px">
+    <div style="color:#475569;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Tabella Riepilogativa Tematici</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th><th>Tema</th><th>Score</th><th>Segnale</th>
+            <th>Ret 1W</th><th>Ret 4W</th>
+            <th>RS 4W</th><th>RS 12W</th><th>RS 26W</th>
+            <th>Trend</th><th>RSI Ratio</th>
+          </tr>
+        </thead>
+        <tbody>''' + thematic_table_rows + '''</tbody>
+      </table>
+    </div>
+  </div>''' if thematic_table_rows else ''}
 </div>
 
 <!-- GUIDE TAB -->
@@ -2250,7 +2437,8 @@ function renderCharts() {{
 #  EMAIL NOTIFICATION
 # ═══════════════════════════════════════════════════════════════
 
-def send_email(scores, metrics, macro, quadrant, cruscotto, dashboard_url):
+def send_email(scores, metrics, macro, quadrant, cruscotto, dashboard_url,
+               thematic_scores=None, thematic_metrics=None):
     """Manda una mail di riepilogo con cruscotto + quadrante + link al dashboard."""
     import smtplib, math
     from email.mime.multipart import MIMEMultipart
@@ -2303,10 +2491,48 @@ def send_email(scores, metrics, macro, quadrant, cruscotto, dashboard_url):
           <td style="padding:10px 14px;color:{rs4w_c};font-weight:600;text-align:right">{rs4w_s}</td>
         </tr>'''
 
-    # Top picks callout
-    top_picks = [t for t,sc in sorted_s if sc['score'] >= 5]
+    # Top picks SPDR
+    top_picks = [t for t, sc in sorted_s if sc['score'] >= 5]
     top_html  = ' '.join(f'<span style="background:#1d4ed8;color:#bfdbfe;padding:4px 12px;border-radius:20px;font-weight:700;margin:3px;display:inline-block">{t}</span>' for t in top_picks) \
                 if top_picks else '<span style="color:#64748b">Nessun settore a 5/6 questa settimana</span>'
+
+    # Top 3 tematici
+    th_top3_html = ''
+    if thematic_scores and thematic_metrics:
+        sorted_th = sorted(thematic_scores.items(), key=lambda x: x[1]['score'], reverse=True)
+        top_th = sorted_th[:3]
+        th_rows = ''
+        for t, sc in top_th:
+            m      = thematic_metrics.get(t, {})
+            color  = sc.get('color', '#666')
+            rs4w   = m.get('rs4w', float('nan'))
+            rs_s   = f"{'+'if rs4w>=0 else ''}{rs4w}%" if not (isinstance(rs4w, float) and math.isnan(rs4w)) else '—'
+            rs_c   = '#22c55e' if not (isinstance(rs4w, float) and math.isnan(rs4w)) and rs4w >= 0 else '#ef4444'
+            th_rows += f'''
+            <tr style="border-bottom:1px solid #1e293b">
+              <td style="padding:8px 12px;font-weight:700;color:#f1f5f9">{t}</td>
+              <td style="padding:8px 12px;color:#94a3b8;font-size:12px">{m.get('name', t)}</td>
+              <td style="padding:8px 12px;text-align:center">
+                <span style="background:{color};color:white;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700">{sc['score']}/6</span>
+              </td>
+              <td style="padding:8px 12px;color:{rs_c};font-weight:600;text-align:right">{rs_s}</td>
+            </tr>'''
+        th_top3_html = f'''
+  <!-- Top 3 Tematici -->
+  <div style="background:#0f172a;border:1px solid #1e3a5f;border-left:3px solid #a855f7;border-radius:12px;padding:18px 24px;margin-bottom:16px">
+    <div style="font-size:11px;color:#c084fc;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:700">🚀 Top 3 ETF Tematici questa settimana</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#0f172a">
+          <th style="padding:6px 12px;text-align:left;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Ticker</th>
+          <th style="padding:6px 12px;text-align:left;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Tema</th>
+          <th style="padding:6px 12px;text-align:center;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Score</th>
+          <th style="padding:6px 12px;text-align:right;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">RS 4W</th>
+        </tr>
+      </thead>
+      <tbody style="background:#0f172a">{th_rows}</tbody>
+    </table>
+  </div>'''
 
     html_body = f'''<!DOCTYPE html>
 <html>
@@ -2346,9 +2572,11 @@ def send_email(scores, metrics, macro, quadrant, cruscotto, dashboard_url):
 
   <!-- Top Picks -->
   <div style="background:#0f2744;border:1px solid #1e3a5f;border-radius:12px;padding:18px 24px;margin-bottom:16px">
-    <div style="font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:700">⭐ Settori con Score ≥ 5/6</div>
+    <div style="font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:700">⭐ Settori SPDR con Score ≥ 5/6</div>
     <div>{top_html}</div>
   </div>
+
+  {th_top3_html}
 
   <!-- Ranking Table -->
   <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;overflow:hidden;margin-bottom:16px">
@@ -2385,7 +2613,10 @@ def send_email(scores, metrics, macro, quadrant, cruscotto, dashboard_url):
 
     msg = MIMEMultipart('alternative')
     sema_emoji = '🟢' if crusc_overall=='VERDE' else '🟡' if crusc_overall=='GIALLO' else '🔴'
-    msg['Subject'] = f'{sema_emoji} Sector Rotation {date_str} | {q_name.split()[0]} | Top: {", ".join(top_picks) if top_picks else "—"}'
+    top_th_tickers = [t for t, sc in sorted(thematic_scores.items(), key=lambda x: x[1]['score'], reverse=True)[:2]] \
+                     if thematic_scores else []
+    th_subject = f' | 🚀 {",".join(top_th_tickers)}' if top_th_tickers else ''
+    msg['Subject'] = f'{sema_emoji} Sector Rotation {date_str} | {q_name.split()[0]} | Top: {", ".join(top_picks) if top_picks else "—"}{th_subject}'
     msg['From']    = EMAIL_SENDER
     msg['To']      = EMAIL_TO
     msg.attach(MIMEText(html_body, 'html', 'utf-8'))
@@ -2435,6 +2666,23 @@ def main():
     quadrant  = detect_quadrant(macro)
     cruscotto = compute_cruscotto(macro, assets, cot, naaim)
 
+    # ── ETF Tematici ──────────────────────────────────────────────
+    print("  ↳ Filtro qualità ETF tematici...")
+    valid_th, excluded_th = filter_quality_etfs(list(THEMATICS.keys()))
+    if excluded_th:
+        for t, r in excluded_th:
+            print(f"    ✗ {t} escluso: {r}")
+    valid_th_dict = {t: THEMATICS[t] for t in valid_th}
+
+    thematic_metrics, thematic_scores, thematic_flows = {}, {}, {}
+    if valid_th:
+        th_prices      = fetch_thematic_prices(valid_th)
+        print("  ↳ Computing thematic metrics...")
+        thematic_metrics = calc_metrics(th_prices, ticker_dict=valid_th_dict)
+        thematic_flows   = fetch_etf_flows(valid_th)
+        print("  ↳ Scoring tematici...")
+        thematic_scores  = compute_scores(thematic_metrics, {}, {}, thematic_flows)
+
     # Print summary
     print(f"\n{'─'*54}")
     print(f"  CRUSCOTTO: {cruscotto['overall']} — {cruscotto['scenario']}")
@@ -2467,9 +2715,25 @@ def main():
         for name, d in cot.items():
             print(f"  {name:14}  {d['mm_net']:+,}  {d['sentiment']}  WoW: {d['change']:+,} {d['direction']}")
 
+    if thematic_scores:
+        print(f"\n{'─'*54}")
+        print(f"  RANKING TEMATICI")
+        print(f"{'─'*54}")
+        for t, sc in sorted(thematic_scores.items(), key=lambda x: x[1]['score'], reverse=True):
+            m     = thematic_metrics.get(t, {})
+            score = sc['score']
+            bars  = '█' * score + '░' * (6 - score)
+            rs    = m.get('rs4w', float('nan'))
+            import math
+            rs_s  = f"RS4W: {'+'if rs>=0 else ''}{rs}%" if not math.isnan(rs) else "RS4W: —"
+            print(f"  {t:5}  [{bars}] {score}/6  {sc['signal']:10}  {rs_s}")
+
     # Generate & save HTML
     print(f"\n🖥️  Generando dashboard HTML...")
-    html = generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, assets, naaim)
+    html = generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, assets, naaim,
+                         thematic_metrics=thematic_metrics,
+                         thematic_scores=thematic_scores,
+                         thematic_excluded=excluded_th)
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2482,7 +2746,8 @@ def main():
     # Send email
     if args.email or (EMAIL_SENDER and EMAIL_TO):
         print(f"\n📧 Invio email...")
-        send_email(scores, metrics, macro, quadrant, cruscotto, url)
+        send_email(scores, metrics, macro, quadrant, cruscotto, url,
+                   thematic_scores=thematic_scores, thematic_metrics=thematic_metrics)
 
     print(f"\n{'═'*54}\n")
 
