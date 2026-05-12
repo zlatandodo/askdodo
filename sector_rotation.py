@@ -174,6 +174,9 @@ def calc_metrics(prices, ticker_dict=None):
     import numpy as np, pandas as pd
     if ticker_dict is None:
         ticker_dict = SECTORS
+    if 'SPY' not in prices.columns:
+        print("  ⚠️  SPY non trovato nei prezzi — impossibile calcolare relative strength.")
+        return {}
     spy = prices['SPY']
 
     def safe_ret(series, lookback):
@@ -1840,12 +1843,109 @@ tr:hover td{{background:#253047}}
   <div class="tab" onclick="goTab('guide')">📖 Guida</div>
 </div>
 
-<!-- CRUSCOTTO TAB (NEW) -->
+<!-- CRUSCOTTO TAB -->
 <div id="t-cruscotto" class="tab-content active">
+
+  <!-- Titolo tab -->
+  <div style="margin-bottom:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <div style="font-size:20px;font-weight:800;color:#f1f5f9">🚦 Cruscotto di Controllo</div>
+      <div style="background:#14532d;color:#4ade80;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.5px">📅 LEGGI OGNI SETTIMANA</div>
+    </div>
+    <div style="color:#64748b;font-size:13px;margin-top:6px;line-height:1.7">
+      Sintesi semaforo di {len(crusc_indicators)} indicatori macro e di sentiment. In 30 secondi capisci se il mercato è risk-on, in allerta o in modalità difensiva.
+    </div>
+  </div>
+
+  <!-- Pannello tipologie: Regime + Overlay + Semaforo -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:22px">
+
+    <!-- Colonna 1: Regimi macro possibili -->
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px">
+      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📍 Regimi Macro Possibili</div>
+      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>
+          <span style="color:#22c55e;font-weight:700;width:170px">BOOM / RISK-ON</span>
+          <span style="color:#64748b">YC &gt;0.5% · HY &lt;3.5%</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;flex-shrink:0"></span>
+          <span style="color:#f59e0b;font-weight:700;width:170px">LATE CYCLE EXPANSION</span>
+          <span style="color:#64748b">YC &gt;0% · HY &lt;4%</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:10px;height:10px;border-radius:50%;background:#f97316;flex-shrink:0"></span>
+          <span style="color:#f97316;font-weight:700;width:170px">LATE CYCLE STRESS</span>
+          <span style="color:#64748b">YC &gt;0% · HY ≥4%</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;flex-shrink:0"></span>
+          <span style="color:#ef4444;font-weight:700;width:170px">INVERSION / WAITING</span>
+          <span style="color:#64748b">YC ≤0% · HY &lt;5%</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:10px;height:10px;border-radius:50%;background:#dc2626;flex-shrink:0"></span>
+          <span style="color:#dc2626;font-weight:700;width:170px">RECESSION RISK</span>
+          <span style="color:#64748b">YC ≤0% · HY ≥5%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonna 2: Overlay sentiment -->
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px">
+      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">🎭 Overlay Sentiment</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:12px">
+        <div>
+          <div style="color:#94a3b8;font-weight:700;margin-bottom:2px">NEUTRAL</div>
+          <div style="color:#64748b;line-height:1.5">Nessun estremo rilevato. Seguire il regime macro senza aggiustamenti.</div>
+        </div>
+        <div style="border-top:1px solid #334155;padding-top:10px">
+          <div style="color:#ef4444;font-weight:700;margin-bottom:2px">⚠️ DEFENSIVE OVERLAY</div>
+          <div style="color:#64748b;line-height:1.5">≥2 estremi tra NAAIM&gt;90, SKEW≥140, VIX&lt;14. Posizionamento istituzionale saturo — ridurre esposizione.</div>
+        </div>
+        <div style="border-top:1px solid #334155;padding-top:10px">
+          <div style="color:#22c55e;font-weight:700;margin-bottom:2px">🎯 CAPITULATION OPPORTUNITY</div>
+          <div style="color:#64748b;line-height:1.5">NAAIM&lt;30. Gestori in capitolazione — storicamente segnale di entry contrarian.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonna 3: Semaforo complessivo -->
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px">
+      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">🔴🟡🟢 Semaforo Complessivo</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:12px">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <span style="width:14px;height:14px;border-radius:50%;background:#22c55e;flex-shrink:0;margin-top:2px"></span>
+          <div>
+            <div style="color:#22c55e;font-weight:700">VERDE — Risk-On</div>
+            <div style="color:#64748b;line-height:1.5">Maggioranza indicatori in zona positiva. Ciclo espansivo, esposizione piena consentita.</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;border-top:1px solid #334155;padding-top:10px">
+          <span style="width:14px;height:14px;border-radius:50%;background:#f59e0b;flex-shrink:0;margin-top:2px"></span>
+          <div>
+            <div style="color:#f59e0b;font-weight:700">GIALLO — Allerta</div>
+            <div style="color:#64748b;line-height:1.5">Segnali misti. Mantenere posizioni ma non aggiungere. Monitorare indicatori in zona arancio.</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;border-top:1px solid #334155;padding-top:10px">
+          <span style="width:14px;height:14px;border-radius:50%;background:#ef4444;flex-shrink:0;margin-top:2px"></span>
+          <div>
+            <div style="color:#ef4444;font-weight:700">ROSSO — Difensivo</div>
+            <div style="color:#64748b;line-height:1.5">Maggioranza indicatori in zona critica. Ridurre equity, aumentare cash e difensivi.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Tabella indicatori -->
   <div class="cruscotto-detail">
-    <p style="color:#64748b;font-size:13px;margin-bottom:14px;line-height:1.7">
-      Dettaglio dei {len(crusc_indicators)} indicatori monitorati. Ogni indicatore ha soglie operative dal framework family office del cruscotto di controllo.
-    </p>
+    <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">
+      Dettaglio {len(crusc_indicators)} Indicatori
+    </div>
     <div class="crusc-table">
       {crusc_indicators_html}
     </div>
@@ -1854,6 +1954,68 @@ tr:hover td{{background:#253047}}
 
 <!-- SCORING TAB -->
 <div id="t-scoring" class="tab-content">
+
+  <!-- Titolo tab -->
+  <div style="margin-bottom:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <div style="font-size:20px;font-weight:800;color:#f1f5f9">🎯 Scoring Settoriale</div>
+      <div style="background:#1e3a5f;color:#60a5fa;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.5px">📅 LEGGI OGNI MESE</div>
+    </div>
+    <div style="color:#64748b;font-size:13px;margin-top:6px;line-height:1.7">
+      Composite score 0–5 per ogni settore SPDR. Utile per decidere dove orientare il portafoglio nel medio termine — non richiede revisione settimanale salvo cambi di regime.
+    </div>
+  </div>
+
+  <!-- Legenda stati operativi -->
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📊 Tipologie di Stato Operativo</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;font-size:12px">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0;margin-top:3px"></span>
+        <div>
+          <div style="color:#22c55e;font-weight:700">STRONG BUY</div>
+          <div style="color:#64748b;line-height:1.5">Macro favorisce + score ≥4. Thesis completa — costruire posizione.</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="width:10px;height:10px;border-radius:50%;background:#84cc16;flex-shrink:0;margin-top:3px"></span>
+        <div>
+          <div style="color:#84cc16;font-weight:700">BUILDING / WATCH</div>
+          <div style="color:#64748b;line-height:1.5">Macro favorisce + score 3. Entrare gradualmente, monitorare.</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;flex-shrink:0;margin-top:3px"></span>
+        <div>
+          <div style="color:#f59e0b;font-weight:700">WAIT — NO MOMENTUM</div>
+          <div style="color:#64748b;line-height:1.5">Macro favorisce ma score &lt;3. Aspettare momentum tecnico prima di entrare.</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="width:10px;height:10px;border-radius:50%;background:#60a5fa;flex-shrink:0;margin-top:3px"></span>
+        <div>
+          <div style="color:#60a5fa;font-weight:700">TRADE (no thesis)</div>
+          <div style="color:#64748b;line-height:1.5">Score ≥4 ma macro non favorisce. Solo trade tattico di breve — no posizione strutturale.</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="width:10px;height:10px;border-radius:50%;background:#64748b;flex-shrink:0;margin-top:3px"></span>
+        <div>
+          <div style="color:#94a3b8;font-weight:700">NEUTRALE</div>
+          <div style="color:#64748b;line-height:1.5">Nessun segnale forte né in un senso né nell'altro. Mantenere se già in portafoglio.</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;flex-shrink:0;margin-top:3px"></span>
+        <div>
+          <div style="color:#ef4444;font-weight:700">EVITARE</div>
+          <div style="color:#64748b;line-height:1.5">Macro sfavorisce + score basso. Non aprire posizioni. Chiudere se presente.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nota flows -->
   <div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:10px 16px;margin-bottom:14px;font-size:12px;color:#64748b">
     ℹ️ Il criterio <strong style="color:#475569">Flows ETF</strong> è in fase di implementazione e verrà reintrodotto quando il feed avrà accumulato 4 settimane di storia.
     Score attuale su <strong style="color:#94a3b8">5 criteri (0–5)</strong>.
