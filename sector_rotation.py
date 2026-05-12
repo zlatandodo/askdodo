@@ -25,6 +25,15 @@ from pathlib import Path
 
 warnings.filterwarnings('ignore')
 
+# Logica regime, overlay, operational_state, hedging
+from regime import (
+    classify_regime, classify_overlay, get_narrative, operational_state,
+    hedging_advice, pluralize_it,
+    REGIME_LABELS, REGIME_COLORS,
+    OPERATIONAL_STATE_LABELS, OPERATIONAL_STATE_COLORS,
+    THRESHOLDS,
+)
+
 # ═══════════════════════════════════════════════════════════════
 #  CONFIGURAZIONE — modifica qui
 # ═══════════════════════════════════════════════════════════════
@@ -639,8 +648,14 @@ def filter_quality_etfs(tickers: list, min_aum_m: float = 300, min_vol_m: float 
 # ═══════════════════════════════════════════════════════════════
 
 def compute_scores(metrics, breadth, cot, etf_flows=None):
-    """Composite score 0–6 per settore (5 criteri tecnici + 1 flow istituzionale)."""
+    """Composite score 0–5 per settore (5 criteri tecnici).
+
+    Il sesto criterio ETF Flows è temporaneamente disabilitato finché
+    il feed non accumula almeno 4 settimane di storia.
+    # TODO: re-enable when ETF flows feed is available (4+ settimane cache)
+    """
     import math
+    t = THRESHOLDS
     if etf_flows is None:
         etf_flows = {}
     scores = {}
@@ -660,21 +675,20 @@ def compute_scores(metrics, breadth, cot, etf_flows=None):
         chk(m['ratio_trend'] == 'UP', 'Trend Ratio',
             m['ratio_trend'])
         b = breadth.get(ticker, float('nan'))
-        b_ok = not math.isnan(b) and b >= 40
+        b_ok = not math.isnan(b) and b >= t.BREADTH_OK
         chk(b_ok, 'Breadth >40%',
             f"{b}%" if not math.isnan(b) else 'N/A')
         chk(rs12 > 0,    'RS 12W vs SPY',
             f"{'+' if rs12>=0 else ''}{rs12}%")
-        chk(m['rsi_ratio'] > 50, 'RSI Ratio >50',
+        chk(m['rsi_ratio'] > t.RSI_BULL, 'RSI Ratio >50',
             str(m['rsi_ratio']))
 
-        # 6° criterio: flows istituzionali 4W positivi
-        fd = etf_flows.get(ticker, {})
-        f1w = fd.get('flow_1w')
-        f4w_ok = fd.get('signal_4w', False)
-        f_val = (f'1W:{f1w:+.0f}M$ · 4W:{"✓" if f4w_ok else "…"}' if f1w is not None
-                 else 'N/A (prima run)')
-        chk(f4w_ok, 'Flows 4W positivi', f_val)
+        # TODO: re-enable when ETF flows feed is available (4+ settimane cache)
+        # fd = etf_flows.get(ticker, {})
+        # f1w = fd.get('flow_1w')
+        # f4w_ok = fd.get('signal_4w', False)
+        # f_val = (f'1W:{f1w:+.0f}M$ · 4W:{"✓" if f4w_ok else "…"}' if f1w is not None else 'N/A')
+        # chk(f4w_ok, 'Flows 4W positivi', f_val)
 
         # COT link per settori commodity
         cot_note = None
@@ -691,9 +705,16 @@ def compute_scores(metrics, breadth, cot, etf_flows=None):
             if d:
                 cot_note = f"Gold COT: MM Net {d.get('mm_net',0):+,} {d.get('direction','')}"
 
-        sig   = 'FORTE' if pts>=5 else 'MODERATO' if pts==4 else 'DEBOLE' if pts>=2 else 'NEGATIVO'
-        color = '#22c55e' if pts>=5 else '#f59e0b' if pts==4 else '#f97316' if pts>=2 else '#ef4444'
-        scores[ticker] = dict(score=pts, max_score=6, signal=sig, color=color,
+        t = THRESHOLDS
+        sig   = ('FORTE'    if pts >= t.SCORE_FORTE
+                 else 'MODERATO' if pts == t.SCORE_MODERATO
+                 else 'DEBOLE'   if pts >= t.SCORE_DEBOLE
+                 else 'NEGATIVO')
+        color = ('#22c55e' if pts >= t.SCORE_FORTE
+                 else '#f59e0b' if pts == t.SCORE_MODERATO
+                 else '#f97316' if pts >= t.SCORE_DEBOLE
+                 else '#ef4444')
+        scores[ticker] = dict(score=pts, max_score=5, signal=sig, color=color,
                                details=details, cot_note=cot_note)
     return scores
 
@@ -1057,25 +1078,35 @@ def compute_cruscotto(macro, assets, cot, naaim=None):
     pct_red = counts['ROSSO'] / n
     pct_green = counts['VERDE'] / n
 
+    # ── Regime e overlay da regime.py (P1) ─────────────────────
+    yc_curr = macro.get('yield_curve', {}).get('current', 0.0)
+    hy_curr = macro.get('hy_spreads',  {}).get('current', 4.0)
+    # yc_30d_ago: valore yield curve di ~22 giorni fa
+    yc_vals = macro.get('yield_curve', {}).get('values', [])
+    yc_30d  = float(yc_vals[-22]) if len(yc_vals) >= 22 else yc_curr
+    naaim_val = naaim['current']  if naaim else 60.0
+    skew_val  = assets.get('SKEW', {}).get('current', 130.0)
+    vix_val   = macro.get('vix',  {}).get('current', 20.0)
+
+    regime, steepening = classify_regime(yc_curr, hy_curr, yc_30d)
+    overlay = classify_overlay(naaim_val, skew_val, vix_val)
+    narrative = get_narrative(regime, overlay)
+    hedge_txt = hedging_advice(vix_val, skew_val)
+
+    # Semaforo overall (colore/label) da conteggio indicatori
     if counts['ROSSO'] >= 3 or pct_red >= 0.4:
         overall = 'ROSSO'
-        scenario = 'SCENARIO C — RISK-OFF / BUNKER'
-        action = ('Vendere parte azionario per liquidità · Aumentare oro e Treasury/Bund · '
-                  'NON comprare il primo ribasso (-10%) · Aspettare capitolazione (-20/30%) o intervento Fed')
-        color = '#ef4444'
+        color   = '#ef4444'
     elif counts['ROSSO'] >= 1 or counts['GIALLO'] >= 4 or pct_green < 0.4:
         overall = 'GIALLO'
-        scenario = 'SCENARIO B — LATE CYCLE / ATTENZIONE'
-        action = ('Smettere di comprare speculativi (small cap, crypto minori) · '
-                  'Accumulare liquidità (XEON/CSH2) · Attivare coperture (PUT mentre VIX è basso) · '
-                  'Mantenere core difensivo')
-        color = '#f59e0b'
+        color   = '#f59e0b'
     else:
         overall = 'VERDE'
-        scenario = 'SCENARIO A — RISK-ON'
-        action = ('Mantenere equity al target di portafoglio · Eseguire PAC regolarmente · '
-                  'Considerare aumento esposizione su settori favoriti dal quadrante macro')
-        color = '#22c55e'
+        color   = '#22c55e'
+
+    # Scenario e azione vengono esclusivamente da REGIME_NARRATIVES (P4)
+    scenario = narrative['title']
+    action   = narrative['action']
 
     return dict(
         overall=overall,
@@ -1084,6 +1115,11 @@ def compute_cruscotto(macro, assets, cot, naaim=None):
         action=action,
         counts=counts,
         indicators=indicators,
+        regime=regime,
+        overlay=overlay,
+        narrative=narrative,
+        hedge_txt=hedge_txt,
+        steepening=steepening,
     )
 
 
@@ -1129,28 +1165,54 @@ def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, ass
           <div class="crusc-msg">{i['message']}</div>
         </div>'''
 
-    # ── Quadrante macro (NEW — Q1/Q2/Q3/Q4) ─────────────────────
+    # ── Regime e overlay (da cruscotto, calcolati in compute_cruscotto) ─
+    regime    = cruscotto.get('regime',    'LATE_CYCLE_EXPANSION')
+    overlay   = cruscotto.get('overlay',   'NEUTRAL')
+    narrative = cruscotto.get('narrative', {})
+    hedge_txt = cruscotto.get('hedge_txt', '')
+    steepening = cruscotto.get('steepening', False)
+
+    regime_label = REGIME_LABELS.get(regime, regime)
+    regime_color = REGIME_COLORS.get(regime, '#f59e0b')
+    overlay_badge = {
+        'DEFENSIVE_OVERLAY':       '<span style="background:#450a0a;color:#fca5a5;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;margin-left:10px">⚠️ OVERLAY DIFENSIVO</span>',
+        'CAPITULATION_OPPORTUNITY':'<span style="background:#14532d;color:#86efac;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;margin-left:10px">🎯 CAPITOLAZIONE</span>',
+        'NEUTRAL':                  '',
+    }.get(overlay, '')
+
+    # Quadrante macro contestuale (info aggiuntiva, non guida classificazione)
     q_color = quadrant.get('color', '#666')
-    q_name = quadrant.get('name', '—')
-    q_id = quadrant.get('id', 'Q?')
-    q_desc = quadrant.get('description', '')
-    q_action = quadrant.get('portfolio_action', '')
-    q_winners = quadrant.get('winners', {})
-    q_losers = quadrant.get('losers', [])
-
-    winners_html = ''
-    for cat, items in q_winners.items():
-        if items:
-            cat_name = {'equity':'EQUITY','credit':'CREDIT','real_assets':'REAL ASSETS','other':'ALTRO'}.get(cat, cat.upper())
-            tags = ' '.join(f'<span class="q-tag green">{x}</span>' for x in items)
-            winners_html += f'<div class="q-cat"><span class="q-cat-name">{cat_name}</span>{tags}</div>'
-    losers_html = ' '.join(f'<span class="q-tag red">{x}</span>' for x in q_losers)
-
-    # Crescita / inflazione direzione
-    g_up = quadrant.get('growth_up')
-    i_up = quadrant.get('inflation_up')
+    q_id    = quadrant.get('id', 'Q?')
+    g_up    = quadrant.get('growth_up')
+    i_up    = quadrant.get('inflation_up')
     g_arrow = '⬆️' if g_up else '⬇️' if g_up is False else '?'
     i_arrow = '⬆️' if i_up else '⬇️' if i_up is False else '?'
+    # CPI e IP YoY per display contestuale
+    cpi_yoy  = quadrant.get('winners', {})  # non usato direttamente
+    ip_yoy   = macro.get('indpro', {}).get('yoy')
+    cpi_yoy_v = macro.get('cpi', {}).get('yoy')
+
+    # ── Tabella Stato Operativo (P2) ─────────────────────────────
+    op_state_rows = ''
+    for tkr, m in sorted(metrics.items(), key=lambda x: scores.get(x[0],{}).get('score',0), reverse=True):
+        sc   = scores.get(tkr, {})
+        pts  = sc.get('score', 0)
+        sig  = sc.get('signal', '—')
+        scolor = sc.get('color', '#666')
+        op   = operational_state(tkr, pts, regime)
+        op_label = OPERATIONAL_STATE_LABELS.get(op, op)
+        op_color = OPERATIONAL_STATE_COLORS.get(op, '#666')
+        rs4  = m.get('rs4w', float('nan'))
+        rs_s = f"{'+'if rs4>=0 else ''}{rs4}%" if not (isinstance(rs4,float) and math.isnan(rs4)) else '—'
+        rs_c = '#22c55e' if not (isinstance(rs4,float) and math.isnan(rs4)) and rs4>=0 else '#ef4444'
+        op_state_rows += f'''<tr>
+          <td style="font-weight:700;color:#f1f5f9">{tkr}</td>
+          <td style="color:#94a3b8">{m.get('name',tkr)}</td>
+          <td><span style="background:{scolor};color:#fff;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700">{pts}/5</span></td>
+          <td style="color:{scolor};font-weight:700;font-size:11px">{sig}</td>
+          <td style="color:{rs_c};font-weight:600">{rs_s}</td>
+          <td><span style="background:{op_color}22;color:{op_color};border:1px solid {op_color}55;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700">{op_label}</span></td>
+        </tr>'''
 
     # ── Macro indicators bar ────────────────────────────────────
     macro_items_html = ''
@@ -1331,7 +1393,7 @@ def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, ass
               <div class="tk-name">{m.get('name', ticker)}</div>
             </div>
             <div style="text-align:center">
-              <div class="score-dot" style="background:{color}">{score}/6</div>
+              <div class="score-dot" style="background:{color}">{score}/5</div>
               <div class="sig" style="color:{color}">{signal}</div>
             </div>
           </div>
@@ -1360,7 +1422,7 @@ def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, ass
             thematic_table_rows += f'''<tr>
               <td style="font-weight:700;color:#f1f5f9">{ticker}</td>
               <td style="color:#94a3b8">{m.get('name', ticker)}</td>
-              <td><span class="score-pill" style="background:{color}">{score}/6</span></td>
+              <td><span class="score-pill" style="background:{color}">{score}/5</span></td>
               <td style="color:{color};font-weight:700">{signal}</td>
               <td style="color:{th_pct_color(m.get('r1w'))}">{th_pct_str(m.get('r1w'))}</td>
               <td style="color:{th_pct_color(m.get('r4w'))}">{th_pct_str(m.get('r4w'))}</td>
@@ -1433,7 +1495,7 @@ def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, ass
               <span class="tk">{ticker}</span>
               <span class="tk-name">{m['name']}</span>
             </div>
-            <div class="score-dot" style="background:{color}">{score}/6</div>
+            <div class="score-dot" style="background:{color}">{score}/5</div>
           </div>
           <div class="sig" style="color:{color}">{signal}</div>
           <div class="m-grid">
@@ -1469,7 +1531,7 @@ def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, ass
         table_rows += f'''<tr>
           <td><b>{ticker}</b></td>
           <td>{m['name']}</td>
-          <td><span class="score-pill" style="background:{color}">{score}/6</span></td>
+          <td><span class="score-pill" style="background:{color}">{score}/5</span></td>
           <td style="color:{color};font-weight:600">{signal}</td>
           {td(m['r1w'])}{td(m['r4w'])}{td(m['r12w'])}
           {td(m['rs4w'])}{td(m['rs12w'])}{td(m['rs26w'])}
@@ -1705,57 +1767,56 @@ tr:hover td{{background:#253047}}
     <div class="crusc-scenario" style="color:{crusc_color}">{crusc_scenario}</div>
     <div class="crusc-action">{crusc_action}</div>
     <div class="crusc-counts">
-      <span style="color:#22c55e">● {crusc_counts.get('VERDE',0)} verdi</span>
-      <span style="color:#f59e0b">● {crusc_counts.get('GIALLO',0)} gialli</span>
-      <span style="color:#ef4444">● {crusc_counts.get('ROSSO',0)} rossi</span>
-      <span style="color:#475569;margin-left:14px;font-size:12px">su {len(crusc_indicators)} indicatori monitorati</span>
+      <span style="color:#22c55e">● {pluralize_it(crusc_counts.get('VERDE',0), 'verde', 'verdi')}</span>
+      <span style="color:#f59e0b">● {pluralize_it(crusc_counts.get('GIALLO',0), 'giallo', 'gialli')}</span>
+      <span style="color:#ef4444">● {pluralize_it(crusc_counts.get('ROSSO',0), 'rosso', 'rossi')}</span>
+      <span style="color:#475569;margin-left:14px;font-size:12px">su {pluralize_it(len(crusc_indicators), 'indicatore', 'indicatori')}</span>
     </div>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
-     QUADRANTE MACRO — All-Weather (NEW)
+     REGIME BANNER — unica fonte di azione portafoglio (P1+P4)
      ══════════════════════════════════════════════════════════ -->
-<div class="quadrant-banner" style="border-left:4px solid {q_color}">
-  <div class="q-header">
-    <div class="q-id" style="background:{q_color}">{q_id}</div>
-    <div>
-      <div class="q-name" style="color:{q_color}">{q_name}</div>
-      <div class="q-axes">Crescita: <strong>{g_arrow}</strong> · Inflazione: <strong>{i_arrow}</strong></div>
-    </div>
+<div style="background:#1e293b;border:1px solid #334155;border-left:5px solid {regime_color};border-radius:12px;padding:20px 26px;margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="font-size:20px;font-weight:900;color:{regime_color};letter-spacing:.5px">{regime_label}</div>
+    {overlay_badge}
+    {'<span style="background:#1e3a5f;color:#60a5fa;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;margin-left:8px">⚡ RE-STEEPENING</span>' if steepening else ''}
   </div>
-  <div class="q-desc">{q_desc}</div>
-  <div class="q-action"><strong>📋 AZIONE PORTAFOGLIO:</strong> {q_action}</div>
-  <div class="q-winners-section">
-    <div class="q-section-name">✅ ASSET VINCENTI</div>
-    {winners_html}
-    <div class="q-section-name" style="margin-top:12px">❌ ASSET PERDENTI</div>
-    <div class="q-cat">{losers_html}</div>
+  <div style="color:#cbd5e1;font-size:14px;line-height:1.7;margin-bottom:10px">{narrative.get('description','')}</div>
+  <div style="background:#0f2744;border-left:3px solid #3b82f6;padding:10px 14px;color:#bfdbfe;font-size:13px;line-height:1.6;margin-bottom:10px;border-radius:6px">
+    <strong>📋 AZIONE PORTAFOGLIO:</strong> {narrative.get('action','')}
   </div>
-  <div class="q-sectors">
-    <strong style="color:#64748b;font-size:12px">SETTORI EQUITY FAVORITI:</strong> {favored_html}
-    <br><strong style="color:#64748b;font-size:12px">EVITARE:</strong> {unfav_html}
-    {' &nbsp;&nbsp;' + steep_html if steep_html else ''}
+  <div style="background:#0f172a;border-left:3px solid #f59e0b;padding:10px 14px;color:#fde68a;font-size:13px;line-height:1.6;border-radius:6px">
+    <strong>🛡️ COPERTURE:</strong> {hedge_txt}
+  </div>
+  <div style="margin-top:12px;font-size:12px;color:#475569">
+    Contesto macro: Crescita IP {f'{ip_yoy:+.1f}% YoY' if ip_yoy is not None else 'N/A'} ·
+    Inflazione CPI {f'{cpi_yoy_v:+.1f}% YoY' if cpi_yoy_v is not None else 'N/A'} ·
+    Asse crescita {g_arrow} · Asse inflazione {i_arrow}
   </div>
 </div>
 
-<!-- LEGENDA DUE LIVELLI -->
-<div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:10px;padding:14px 20px;margin-bottom:16px;display:flex;gap:24px;flex-wrap:wrap;font-size:12px;line-height:1.6">
-  <div style="flex:1;min-width:220px">
-    <span style="color:#f59e0b;font-weight:700">🚦 CRUSCOTTO = SENTIMENT DI MERCATO (breve termine)</span><br>
-    <span style="color:#64748b">Misura 8 indicatori di rischio: VIX, HY spreads, NAAIM, SKEW, yield curve, DXY, MOVE, Copper/Gold.
-    Risponde in settimane. Dice quanto è sicuro stare esposti adesso.</span>
+<!-- TABELLA STATO OPERATIVO (P2) -->
+<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;overflow:hidden;margin-bottom:16px">
+  <div style="padding:12px 18px;border-bottom:1px solid #334155;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700">
+    📊 Stato Operativo Settori — Regime: <span style="color:{regime_color}">{regime_label}</span>
   </div>
-  <div style="flex:1;min-width:220px">
-    <span style="color:{q_color};font-weight:700">🌍 QUADRANTE = CICLO MACRO (medio termine)</span><br>
-    <span style="color:#64748b">Misura crescita (IP, LEI, Chicago Fed) e inflazione (CPI, PCE).
-    Cambia in mesi. Dice quali asset sono strutturalmente favoriti nei prossimi 3–9 mesi.</span>
-  </div>
-  <div style="flex:1;min-width:220px;border-left:2px solid #1e3a5f;padding-left:20px">
-    <span style="color:#94a3b8;font-weight:700">⚡ POSSONO DIVERGERE — è normale</span><br>
-    <span style="color:#64748b">Cruscotto GIALLO + Quadrante STAGFLAZIONE significa:
-    il macro è deteriorato ma i mercati non prezzano ancora il rischio pieno.
-    Situazione da monitorare, non da ignorare.</span>
+  <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#0f172a">
+          <th style="padding:8px 12px;text-align:left;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Ticker</th>
+          <th style="padding:8px 12px;text-align:left;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Settore</th>
+          <th style="padding:8px 12px;text-align:center;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Score</th>
+          <th style="padding:8px 12px;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Segnale</th>
+          <th style="padding:8px 12px;text-align:right;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">RS 4W</th>
+          <th style="padding:8px 12px;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Stato Operativo</th>
+        </tr>
+      </thead>
+      <tbody style="background:#1e293b">{op_state_rows}</tbody>
+    </table>
   </div>
 </div>
 
@@ -1793,6 +1854,10 @@ tr:hover td{{background:#253047}}
 
 <!-- SCORING TAB -->
 <div id="t-scoring" class="tab-content">
+  <div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:10px 16px;margin-bottom:14px;font-size:12px;color:#64748b">
+    ℹ️ Il criterio <strong style="color:#475569">Flows ETF</strong> è in fase di implementazione e verrà reintrodotto quando il feed avrà accumulato 4 settimane di storia.
+    Score attuale su <strong style="color:#94a3b8">5 criteri (0–5)</strong>.
+  </div>
   <div class="grid">{cards_html}</div>
 </div>
 
@@ -1845,7 +1910,7 @@ tr:hover td{{background:#253047}}
 <div id="t-tematici" class="tab-content">
   <div style="margin-bottom:16px">
     <div style="font-size:13px;color:#64748b;line-height:1.7;margin-bottom:8px">
-      Universo ETF tematici monitorati — scoring identico ai settori SPDR (0–6/6).
+      Universo ETF tematici monitorati — scoring identico ai settori SPDR (0–5/5).
       Filtro qualità: AUM &gt;$300M e volume medio &gt;$10M/giorno.
       Breadth non disponibile (no componenti mappati).
     </div>
@@ -2067,7 +2132,7 @@ tr:hover td{{background:#253047}}
 
     <div class="score-legend">
       <div class="sl-item" style="background:#052e16;border:1px solid #166534">
-        <div class="sl-score" style="color:#22c55e">5–6/6</div>
+        <div class="sl-score" style="color:#22c55e">5–5/5</div>
         <div class="sl-label" style="color:#86efac">FORTE</div>
         <div class="sl-desc" style="color:#4ade80">Setup ottimale. Procedi all'analisi tecnica per il timing di entry.</div>
       </div>
@@ -2124,7 +2189,7 @@ tr:hover td{{background:#253047}}
 
     <div class="g-box slate">
       <strong>Come usare i cambiamenti di score settimana su settimana:</strong><br>
-      Il segnale più azionabile non è il settore a 6/6 (già in trend) — è il settore che passa da <strong>2→3 o da 3→4</strong>. Quella è la rotation che inizia. Tieni traccia del delta settimanale, non del valore assoluto.
+      Il segnale più azionabile non è il settore a 5/5 (già in trend) — è il settore che passa da <strong>2→3 o da 3→4</strong>. Quella è la rotation che inizia. Tieni traccia del delta settimanale, non del valore assoluto.
     </div>
   </div>
 
@@ -2211,7 +2276,7 @@ tr:hover td{{background:#253047}}
         <div class="wf-left"><div class="wf-num">3</div><div class="wf-line"></div></div>
         <div class="wf-body">
           <div class="wf-title">Leggi i delta di score (Scoring tab)</div>
-          <div class="wf-detail">Quale settore è salito di score rispetto alla settimana scorsa? Il movimento da 2→3 o da 3→4 è il segnale operativo. Un settore già a 6/6 da 3 settimane è in trend, ma l'entry ottimale è già passata.</div>
+          <div class="wf-detail">Quale settore è salito di score rispetto alla settimana scorsa? Il movimento da 2→3 o da 3→4 è il segnale operativo. Un settore già a 5/5 da 3 settimane è in trend, ma l'entry ottimale è già passata.</div>
         </div>
       </div>
       <div class="wf-step">
@@ -2232,7 +2297,7 @@ tr:hover td{{background:#253047}}
         <div class="wf-left"><div class="wf-num">6</div><div class="wf-line"></div></div>
         <div class="wf-body">
           <div class="wf-title">TradingView — setup tecnico (fuori dal dashboard)</div>
-          <div class="wf-detail">Per ogni settore a 5–6/6, apri il chart su TradingView. Cerca: (a) breakout da consolidazione con volume, (b) pullback Fibonacci 38–50% su primo strappo, (c) inverse head & shoulders su base settimanale. Definisci entry, stop e target <strong style="color:#e2e8f0">prima</strong> di comprare.</div>
+          <div class="wf-detail">Per ogni settore a 5–5/5, apri il chart su TradingView. Cerca: (a) breakout da consolidazione con volume, (b) pullback Fibonacci 38–50% su primo strappo, (c) inverse head & shoulders su base settimanale. Definisci entry, stop e target <strong style="color:#e2e8f0">prima</strong> di comprare.</div>
         </div>
       </div>
     </div>
@@ -2283,7 +2348,7 @@ tr:hover td{{background:#253047}}
       </div>
     </div>
     <div class="g-box amber">
-      <strong>Bias comportamentale da evitare:</strong> non entrare su un settore già a 6/6 da 6 settimane solo perché il dashboard lo mostra verde. L'opportunità è all'alba del trend (3→4), non a metà. Un settore già esploso ha il rischio/rendimento peggiore.
+      <strong>Bias comportamentale da evitare:</strong> non entrare su un settore già a 5/5 da 6 settimane solo perché il dashboard lo mostra verde. L'opportunità è all'alba del trend (3→4), non a metà. Un settore già esploso ha il rischio/rendimento peggiore.
     </div>
   </div>
 
@@ -2334,7 +2399,7 @@ tr:hover td{{background:#253047}}
     <h3>⚠️ 10. Errori Comuni da Evitare</h3>
     <div class="g-box red">
       <strong>1. Usare solo lo score ignorando il regime macro.</strong><br>
-      Un settore a 6/6 nel regime sbagliato è un segnale falso. Energy a 6/6 in piena recessione con HY spread al 7% è un rimbalzo nel downtrend, non una rotation.
+      Un settore a 5/5 nel regime sbagliato è un segnale falso. Energy a 5/5 in piena recessione con HY spread al 7% è un rimbalzo nel downtrend, non una rotation.
     </div>
     <div class="g-box red">
       <strong>2. Confondere ritorno assoluto con relative strength.</strong><br>
@@ -2346,7 +2411,7 @@ tr:hover td{{background:#253047}}
     </div>
     <div class="g-box red">
       <strong>4. Inseguire il settore già in trend da mesi.</strong><br>
-      Se un settore è a 6/6 da 8 settimane, il grosso del movimento è già prezzato. La rotation del denaro istituzionale avviene nelle prime 4–8 settimane. Dopo, stai comprando da chi sta già vendendo.
+      Se un settore è a 5/5 da 8 settimane, il grosso del movimento è già prezzato. La rotation del denaro istituzionale avviene nelle prime 4–8 settimane. Dopo, stai comprando da chi sta già vendendo.
     </div>
     <div class="g-box amber">
       <strong>Regola finale:</strong> il dashboard identifica il <em>cosa</em> e il <em>quando in termini di settimane</em>. Il timing preciso dell'entry (al giorno) richiede il setup tecnico su TradingView. Non sostituire uno con l'altro.
@@ -2510,16 +2575,16 @@ def send_email(scores, metrics, macro, quadrant, cruscotto, dashboard_url,
           <td style="padding:10px 14px;font-weight:700;color:#f1f5f9">{ticker}</td>
           <td style="padding:10px 14px;color:#94a3b8">{name}</td>
           <td style="padding:10px 14px;text-align:center">
-            <span style="background:{color};color:white;padding:3px 10px;border-radius:12px;font-weight:700;font-size:13px">{score}/6</span>
+            <span style="background:{color};color:white;padding:3px 10px;border-radius:12px;font-weight:700;font-size:13px">{score}/5</span>
           </td>
           <td style="padding:10px 14px;color:{color};font-weight:700;font-size:12px;letter-spacing:.5px">{signal}</td>
           <td style="padding:10px 14px;color:{rs4w_c};font-weight:600;text-align:right">{rs4w_s}</td>
         </tr>'''
 
     # Top picks SPDR
-    top_picks = [t for t, sc in sorted_s if sc['score'] >= 5]
+    top_picks = [t for t, sc in sorted_s if sc['score'] >= 4]
     top_html  = ' '.join(f'<span style="background:#1d4ed8;color:#bfdbfe;padding:4px 12px;border-radius:20px;font-weight:700;margin:3px;display:inline-block">{t}</span>' for t in top_picks) \
-                if top_picks else '<span style="color:#64748b">Nessun settore a 5/6 questa settimana</span>'
+                if top_picks else '<span style="color:#64748b">Nessun settore a 4/5 questa settimana</span>'
 
     # Top 3 tematici
     th_top3_html = ''
@@ -2538,7 +2603,7 @@ def send_email(scores, metrics, macro, quadrant, cruscotto, dashboard_url,
               <td style="padding:8px 12px;font-weight:700;color:#f1f5f9">{t}</td>
               <td style="padding:8px 12px;color:#94a3b8;font-size:12px">{m.get('name', t)}</td>
               <td style="padding:8px 12px;text-align:center">
-                <span style="background:{color};color:white;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700">{sc['score']}/6</span>
+                <span style="background:{color};color:white;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700">{sc['score']}/5</span>
               </td>
               <td style="padding:8px 12px;color:{rs_c};font-weight:600;text-align:right">{rs_s}</td>
             </tr>'''
@@ -2597,7 +2662,7 @@ def send_email(scores, metrics, macro, quadrant, cruscotto, dashboard_url,
 
   <!-- Top Picks -->
   <div style="background:#0f2744;border:1px solid #1e3a5f;border-radius:12px;padding:18px 24px;margin-bottom:16px">
-    <div style="font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:700">⭐ Settori SPDR con Score ≥ 5/6</div>
+    <div style="font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:700">⭐ Settori SPDR con Score ≥ 4/5</div>
     <div>{top_html}</div>
   </div>
 
@@ -2717,8 +2782,8 @@ def main():
         sym = '🟢' if st=='VERDE' else '🟡' if st=='GIALLO' else '🔴'
         print(f"  {sym} {ind['name']:32}  {ind['value']:>10}  {ind['message']}")
 
-    print(f"\n  QUADRANTE: {quadrant['name']}")
-    print(f"  → {quadrant['portfolio_action']}")
+    print(f"\n  REGIME: {cruscotto['regime']} + {cruscotto['overlay']}")
+    print(f"  → {cruscotto['narrative'].get('action','')}")
 
     print(f"\n{'─'*54}")
     print(f"  RANKING COMPOSITE SCORE — SETTORI")
@@ -2727,13 +2792,13 @@ def main():
     for t, sc in sorted(scores.items(), key=lambda x: x[1]['score'], reverse=True):
         m     = metrics.get(t,{})
         score = sc['score']
-        bars  = '█'*score + '░'*(6-score)
+        bars  = '█'*score + '░'*(5-score)
         rs    = m.get('rs4w', float('nan'))
         rs_s  = f"RS4W: {'+'if rs>=0 else ''}{rs}%" if not math.isnan(rs) else "RS4W: —"
         fd    = etf_flows.get(t, {})
         f1w   = fd.get('flow_1w')
         f_s   = f"Flow: {f1w:+.0f}M$" if f1w is not None else "Flow: N/A"
-        print(f"  {t:5}  [{bars}] {score}/6  {sc['signal']:10}  {rs_s}  {f_s}")
+        print(f"  {t:5}  [{bars}] {score}/5  {sc['signal']:10}  {rs_s}  {f_s}")
 
     if cot:
         print(f"\n  COT — MANAGED MONEY NET (Multi-Asset)")
@@ -2751,7 +2816,7 @@ def main():
             rs    = m.get('rs4w', float('nan'))
             import math
             rs_s  = f"RS4W: {'+'if rs>=0 else ''}{rs}%" if not math.isnan(rs) else "RS4W: —"
-            print(f"  {t:5}  [{bars}] {score}/6  {sc['signal']:10}  {rs_s}")
+            print(f"  {t:5}  [{bars}] {score}/5  {sc['signal']:10}  {rs_s}")
 
     # Generate & save HTML
     print(f"\n🖥️  Generando dashboard HTML...")
