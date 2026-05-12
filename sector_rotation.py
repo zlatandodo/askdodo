@@ -1183,17 +1183,64 @@ def generate_html(metrics, scores, breadth, macro, cot, quadrant, cruscotto, ass
         'NEUTRAL':                  '',
     }.get(overlay, '')
 
-    # Quadrante macro contestuale (info aggiuntiva, non guida classificazione)
-    q_color = quadrant.get('color', '#666')
-    q_id    = quadrant.get('id', 'Q?')
+    # Quadrante macro contestuale
+    q_color  = quadrant.get('color', '#666')
+    q_id     = quadrant.get('id', 'Q?')
+    q_name   = quadrant.get('name', '—')
+    q_desc   = quadrant.get('description', '')
+    q_action = quadrant.get('portfolio_action', '')
+    q_winners = quadrant.get('winners', {})
+    q_losers  = quadrant.get('losers', [])
     g_up    = quadrant.get('growth_up')
     i_up    = quadrant.get('inflation_up')
     g_arrow = '⬆️' if g_up else '⬇️' if g_up is False else '?'
     i_arrow = '⬆️' if i_up else '⬇️' if i_up is False else '?'
-    # CPI e IP YoY per display contestuale
-    cpi_yoy  = quadrant.get('winners', {})  # non usato direttamente
-    ip_yoy   = macro.get('indpro', {}).get('yoy')
+
+    # Indicatori macro per il tab contesto
+    ip_yoy    = macro.get('indpro', {}).get('yoy')
     cpi_yoy_v = macro.get('cpi', {}).get('yoy')
+    pce_yoy   = macro.get('core_pce', {}).get('yoy')
+    chicago_v = macro.get('chicago_fed', {}).get('current')
+    lei_dir   = macro.get('lei', {}).get('direction', '—')
+
+    # Delta 3M per Industrial Production (derivata del trend crescita)
+    _ip_vals = macro.get('indpro', {}).get('values', [])
+    _ip_yoy_3m_ago = None
+    if len(_ip_vals) >= 16:
+        try:
+            _ip_yoy_3m_ago = round((_ip_vals[-4] / _ip_vals[-16] - 1) * 100, 2)
+        except (ZeroDivisionError, TypeError):
+            pass
+    ip_delta_3m = None
+    if ip_yoy is not None and _ip_yoy_3m_ago is not None:
+        ip_delta_3m = round(ip_yoy - _ip_yoy_3m_ago, 2)
+
+    # Helper: colore semaforo per indicatori macro
+    def _ind_color(key_name, val):
+        if val is None: return '#64748b'
+        if key_name == 'ip_yoy':
+            return '#22c55e' if val > 1 else '#f59e0b' if val > -1 else '#ef4444'
+        if key_name in ('cpi_yoy', 'pce_yoy'):
+            return '#22c55e' if val < 2.5 else '#f59e0b' if val < 4 else '#ef4444'
+        if key_name == 'chicago':
+            return '#22c55e' if val > 0.2 else '#f59e0b' if val > -0.2 else '#ef4444'
+        return '#94a3b8'
+
+    # Costruzione HTML winners per quadrante
+    def _winners_html(w: dict) -> str:
+        lines = []
+        for category, items in w.items():
+            if not items: continue
+            cat_label = {'equity':'📈 Equity','credit':'🏦 Credit / Bond','real_assets':'🛢️ Real Assets','other':'🔒 Altro'}.get(category, category)
+            lines.append(f'<div style="margin-bottom:8px"><div style="color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:4px">{cat_label}</div>')
+            lines.append('<div style="display:flex;flex-wrap:wrap;gap:5px">')
+            for item in items:
+                lines.append(f'<span style="background:#14532d;color:#4ade80;padding:2px 8px;border-radius:10px;font-size:11px">{item}</span>')
+            lines.append('</div></div>')
+        return ''.join(lines)
+
+    def _losers_html(lst: list) -> str:
+        return ''.join(f'<span style="background:#450a0a;color:#fca5a5;padding:2px 8px;border-radius:10px;font-size:11px;margin:2px">{l}</span>' for l in lst)
 
     # ── Tabella Stato Operativo (P2) ─────────────────────────────
     op_state_rows = ''
@@ -1834,7 +1881,8 @@ tr:hover td{{background:#253047}}
 
 <!-- TABS -->
 <div class="tabs">
-  <div class="tab active" onclick="goTab('cruscotto')">🚦 Cruscotto</div>
+  <div class="tab active" onclick="goTab('macro')">📍 Macro</div>
+  <div class="tab" onclick="goTab('cruscotto')">🚦 Cruscotto</div>
   <div class="tab" onclick="goTab('scoring')">🎯 Scoring</div>
   <div class="tab" onclick="goTab('charts')">📈 Charts</div>
   <div class="tab" onclick="goTab('table')">📋 Tabella</div>
@@ -1843,8 +1891,174 @@ tr:hover td{{background:#253047}}
   <div class="tab" onclick="goTab('guide')">📖 Guida</div>
 </div>
 
+<!-- MACRO TAB (mensile) -->
+<div id="t-macro" class="tab-content active">
+
+  <!-- Titolo -->
+  <div style="margin-bottom:24px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <div style="font-size:20px;font-weight:800;color:#f1f5f9">📍 Contesto Macro</div>
+      <div style="background:#1e3a5f;color:#60a5fa;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.5px">📅 AGGIORNA UNA VOLTA AL MESE</div>
+    </div>
+    <div style="color:#64748b;font-size:13px;margin-top:6px;line-height:1.7">
+      Il ciclo economico si muove lentamente. Questo quadro ti dice in quale dei 4 quadranti siamo e come orientare il portafoglio nel medio termine.
+    </div>
+  </div>
+
+  <!-- Matrice 2×2 quadranti -->
+  <div style="margin-bottom:24px">
+    <!-- Etichette assi -->
+    <div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px;margin-bottom:6px;align-items:center">
+      <div></div>
+      <div style="text-align:center;font-size:11px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:.5px">📉 Inflazione bassa<br><span style="color:#475569;font-weight:400">CPI/PCE &lt;2.5%</span></div>
+      <div style="text-align:center;font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.5px">📈 Inflazione alta<br><span style="color:#475569;font-weight:400">CPI/PCE &gt;2.5%</span></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px">
+      <!-- Asse crescita etichette -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="background:#1e293b;border-radius:8px;padding:14px 10px;text-align:center;font-size:11px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:.4px;flex:1;display:flex;align-items:center;justify-content:center">
+          ↑<br>Crescita<br>in salita<br><span style="color:#475569;font-weight:400;font-size:10px">IP &gt;0%</span>
+        </div>
+        <div style="background:#1e293b;border-radius:8px;padding:14px 10px;text-align:center;font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.4px;flex:1;display:flex;align-items:center;justify-content:center">
+          ↓<br>Crescita<br>in calo<br><span style="color:#475569;font-weight:400;font-size:10px">IP &lt;0%</span>
+        </div>
+      </div>
+
+      <!-- Q1 GOLDILOCKS (crescita↑ inflazione↓) -->
+      <div style="background:{'#0f2a1a' if q_id=='Q1' else '#1e293b'};border:2px solid {'#22c55e' if q_id=='Q1' else '#334155'};border-radius:12px;padding:18px;position:relative;cursor:default">
+        {'<div style="position:absolute;top:8px;right:8px;background:#22c55e;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px">← SEI QUI</div>' if q_id=='Q1' else ''}
+        <div style="font-size:16px;font-weight:900;color:{'#22c55e' if q_id=='Q1' else '#475569'};margin-bottom:8px">GOLDILOCKS 🟢</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.6;margin-bottom:10px">Scenario ideale. Utili in salita, tassi stabili, liquidità abbondante.</div>
+        <div style="font-size:10px;color:#475569;line-height:1.7">
+          ✅ Tech (XLK) · Discretionary (XLY)<br>
+          ✅ Quality Growth · REIT<br>
+          ❌ Cash · Oro · Commodities
+        </div>
+      </div>
+
+      <!-- Q2 REFLAZIONE (crescita↑ inflazione↑) -->
+      <div style="background:{'#2a1f0a' if q_id=='Q2' else '#1e293b'};border:2px solid {'#f59e0b' if q_id=='Q2' else '#334155'};border-radius:12px;padding:18px;position:relative">
+        {'<div style="position:absolute;top:8px;right:8px;background:#f59e0b;color:#000;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px">← SEI QUI</div>' if q_id=='Q2' else ''}
+        <div style="font-size:16px;font-weight:900;color:{'#f59e0b' if q_id=='Q2' else '#475569'};margin-bottom:8px">REFLAZIONE 🟡</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.6;margin-bottom:10px">Economia surriscaldata. Banche centrali alzano i tassi, ma utili tengono.</div>
+        <div style="font-size:10px;color:#475569;line-height:1.7">
+          ✅ Energy (XLE) · Materiali (XLB)<br>
+          ✅ TIPS · Commodities · Banche<br>
+          ❌ Bond nominali lunghi · Tech speculativo
+        </div>
+      </div>
+
+      <!-- Q4 DEFLAZIONE/RECESSIONE (crescita↓ inflazione↓) -->
+      <div style="background:{'#0a1428' if q_id=='Q4' else '#1e293b'};border:2px solid {'#3b82f6' if q_id=='Q4' else '#334155'};border-radius:12px;padding:18px;position:relative">
+        {'<div style="position:absolute;top:8px;right:8px;background:#3b82f6;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px">← SEI QUI</div>' if q_id=='Q4' else ''}
+        <div style="font-size:16px;font-weight:900;color:{'#3b82f6' if q_id=='Q4' else '#475569'};margin-bottom:8px">DEFLAZIONE / RECESSIONE 🔵</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.6;margin-bottom:10px">Crisi o recessione. Domanda crolla, prezzi scendono. Cash is King.</div>
+        <div style="font-size:10px;color:#475569;line-height:1.7">
+          ✅ Treasury lunghi (TLT) · Cash<br>
+          ✅ Difensivi (XLV, XLU, XLP)<br>
+          ❌ Equity · Commodities · High Yield
+        </div>
+      </div>
+
+      <!-- Q3 STAGFLAZIONE (crescita↓ inflazione↑) -->
+      <div style="background:{'#2a0a0a' if q_id=='Q3' else '#1e293b'};border:2px solid {'#ef4444' if q_id=='Q3' else '#334155'};border-radius:12px;padding:18px;position:relative">
+        {'<div style="position:absolute;top:8px;right:8px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px">← SEI QUI</div>' if q_id=='Q3' else ''}
+        <div style="font-size:16px;font-weight:900;color:{'#ef4444' if q_id=='Q3' else '#475569'};margin-bottom:8px">STAGFLAZIONE 🔴</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.6;margin-bottom:10px">Scenario peggiore. Prezzi salgono, economia rallenta. 60/40 massacrato.</div>
+        <div style="font-size:10px;color:#475569;line-height:1.7">
+          ✅ Oro (SGLD) · Energy · TIPS<br>
+          ✅ Liquidità alta · BTP Italia<br>
+          ❌ Growth · Bond nominali · 60/40
+        </div>
+      </div>
+
+    </div><!-- fine grid -->
+  </div><!-- fine matrice -->
+
+  <!-- Indicatori che guidano la classificazione -->
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;margin-bottom:20px">
+    <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px">📊 Indicatori di Classificazione</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+
+      <!-- Asse Crescita -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #334155">
+          Asse Crescita {g_arrow}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="color:#64748b">Produzione Industriale YoY</span>
+            <span style="color:{_ind_color('ip_yoy', ip_yoy)};font-weight:700">
+              {f"{ip_yoy:+.1f}%" if ip_yoy is not None else "N/A"}
+              {f" <span style='font-size:10px;color:#64748b'>(Δ3M: {ip_delta_3m:+.1f}pp)</span>" if ip_delta_3m is not None else ""}
+            </span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="color:#64748b">Chicago Fed (CFNAI)</span>
+            <span style="color:{_ind_color('chicago', chicago_v)};font-weight:700">
+              {f"{chicago_v:+.2f}" if chicago_v is not None else "N/A"}
+              <span style="font-size:10px;color:#475569"> (>0.2=esp, <−0.2=contr)</span>
+            </span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="color:#64748b">LEI USA (OECD)</span>
+            <span style="color:{'#22c55e' if lei_dir=='UP' else '#ef4444' if lei_dir=='DOWN' else '#f59e0b'};font-weight:700">
+              {'⬆️ IN SALITA' if lei_dir=='UP' else '⬇️ IN CALO' if lei_dir=='DOWN' else '➡️ STABILE'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Asse Inflazione -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #334155">
+          Asse Inflazione {i_arrow}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="color:#64748b">CPI USA YoY</span>
+            <span style="color:{_ind_color('cpi_yoy', cpi_yoy_v)};font-weight:700">
+              {f"{cpi_yoy_v:+.1f}%" if cpi_yoy_v is not None else "N/A"}
+              <span style="font-size:10px;color:#475569"> (soglia: 2.5%)</span>
+            </span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="color:#64748b">Core PCE YoY</span>
+            <span style="color:{_ind_color('pce_yoy', pce_yoy)};font-weight:700">
+              {f"{pce_yoy:+.1f}%" if pce_yoy is not None else "N/A"}
+              <span style="font-size:10px;color:#475569"> (obiettivo Fed: 2%)</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Box quadrante attivo: descrizione + azione -->
+  <div style="background:#1e293b;border:2px solid {q_color};border-radius:12px;padding:20px">
+    <div style="font-size:18px;font-weight:900;color:{q_color};margin-bottom:8px">{q_name}</div>
+    <div style="color:#cbd5e1;font-size:14px;line-height:1.7;margin-bottom:16px">{q_desc}</div>
+    <div style="background:#0f2744;border-left:3px solid #3b82f6;padding:10px 14px;color:#bfdbfe;font-size:13px;line-height:1.6;margin-bottom:16px;border-radius:6px">
+      <strong>📋 AZIONE PORTAFOGLIO:</strong> {q_action}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">✅ Asset Vincitori</div>
+        {_winners_html(q_winners)}
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">❌ Asset da Evitare</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">{_losers_html(q_losers)}</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- fine t-macro -->
+
 <!-- CRUSCOTTO TAB -->
-<div id="t-cruscotto" class="tab-content active">
+<div id="t-cruscotto" class="tab-content">
 
   <!-- Titolo tab -->
   <div style="margin-bottom:20px">
@@ -2587,7 +2801,7 @@ tr:hover td{{background:#253047}}
 
 <script>
 // ── TABS ─────────────────────────────────────────────────────
-const TABS = ['cruscotto','scoring','charts','table','cot','tematici','guide'];
+const TABS = ['macro','cruscotto','scoring','charts','table','cot','tematici','guide'];
 function goTab(name) {{
   TABS.forEach(id => {{
     document.querySelectorAll('.tab')[TABS.indexOf(id)].classList.toggle('active', id===name);
