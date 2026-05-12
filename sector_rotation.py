@@ -1821,64 +1821,9 @@ tr:hover td{{background:#253047}}
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     REGIME BANNER — unica fonte di azione portafoglio (P1+P4)
-     ══════════════════════════════════════════════════════════ -->
-<div style="background:#1e293b;border:1px solid #334155;border-left:5px solid {regime_color};border-radius:12px;padding:20px 26px;margin-bottom:16px">
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
-    <div style="font-size:20px;font-weight:900;color:{regime_color};letter-spacing:.5px">{regime_label}</div>
-    {overlay_badge}
-    {'<span style="background:#1e3a5f;color:#60a5fa;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;margin-left:8px">⚡ RE-STEEPENING</span>' if steepening else ''}
-  </div>
-  <div style="color:#cbd5e1;font-size:14px;line-height:1.7;margin-bottom:10px">{narrative.get('description','')}</div>
-  <div style="background:#0f2744;border-left:3px solid #3b82f6;padding:10px 14px;color:#bfdbfe;font-size:13px;line-height:1.6;margin-bottom:10px;border-radius:6px">
-    <strong>📋 AZIONE PORTAFOGLIO:</strong> {narrative.get('action','')}
-  </div>
-  <div style="background:#0f172a;border-left:3px solid #f59e0b;padding:10px 14px;color:#fde68a;font-size:13px;line-height:1.6;border-radius:6px">
-    <strong>🛡️ COPERTURE:</strong> {hedge_txt}
-  </div>
-  <div style="margin-top:12px;font-size:12px;color:#475569">
-    Contesto macro: Crescita IP {f'{ip_yoy:+.1f}% YoY' if ip_yoy is not None else 'N/A'} ·
-    Inflazione CPI {f'{cpi_yoy_v:+.1f}% YoY' if cpi_yoy_v is not None else 'N/A'} ·
-    Asse crescita {g_arrow} · Asse inflazione {i_arrow}
-  </div>
-</div>
-
-<!-- TABELLA STATO OPERATIVO (P2) -->
-<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;overflow:hidden;margin-bottom:16px">
-  <div style="padding:12px 18px;border-bottom:1px solid #334155;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700">
-    📊 Stato Operativo Settori — Regime: <span style="color:{regime_color}">{regime_label}</span>
-  </div>
-  <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead>
-        <tr style="background:#0f172a">
-          <th style="padding:8px 12px;text-align:left;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Ticker</th>
-          <th style="padding:8px 12px;text-align:left;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Settore</th>
-          <th style="padding:8px 12px;text-align:center;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Score</th>
-          <th style="padding:8px 12px;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Segnale</th>
-          <th style="padding:8px 12px;text-align:right;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">RS 4W</th>
-          <th style="padding:8px 12px;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Stato Operativo</th>
-        </tr>
-      </thead>
-      <tbody style="background:#1e293b">{op_state_rows}</tbody>
-    </table>
-  </div>
-</div>
-
-<!-- MACRO BAR -->
-<div class="macro-bar">{macro_items_html}</div>
-
-<!-- ASSET WATCH (NEW) -->
-{'<div class="section-header">🌐 Asset Watch — Indicatori Cross-Asset</div><div class="asset-bar">' + asset_items_html + '</div>' if asset_items_html else ''}
-
-<!-- NAAIM -->
-{naaim_html}
-
 <!-- TABS -->
 <div class="tabs">
   <div class="tab active" onclick="goTab('macro')">📍 Macro</div>
-  <div class="tab" onclick="goTab('cruscotto')">🚦 Cruscotto</div>
   <div class="tab" onclick="goTab('scoring')">🎯 Scoring</div>
   <div class="tab" onclick="goTab('charts')">📈 Charts</div>
   <div class="tab" onclick="goTab('table')">📋 Tabella</div>
@@ -2032,8 +1977,8 @@ tr:hover td{{background:#253047}}
     </div>
   </div>
 
-  <!-- Box quadrante attivo: descrizione + azione -->
-  <div style="background:#1e293b;border:2px solid {q_color};border-radius:12px;padding:20px">
+  <!-- Box quadrante attivo: descrizione + azione + asset -->
+  <div style="background:#1e293b;border:2px solid {q_color};border-radius:12px;padding:20px;margin-bottom:20px">
     <div style="font-size:18px;font-weight:900;color:{q_color};margin-bottom:8px">{q_name}</div>
     <div style="color:#cbd5e1;font-size:14px;line-height:1.7;margin-bottom:16px">{q_desc}</div>
     <div style="background:#0f2744;border-left:3px solid #3b82f6;padding:10px 14px;color:#bfdbfe;font-size:13px;line-height:1.6;margin-bottom:16px;border-radius:6px">
@@ -2051,116 +1996,79 @@ tr:hover td{{background:#253047}}
     </div>
   </div>
 
-</div><!-- fine t-macro -->
-
-<!-- CRUSCOTTO TAB -->
-<div id="t-cruscotto" class="tab-content">
-
-  <!-- Titolo tab -->
-  <div style="margin-bottom:20px">
-    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
-      <div style="font-size:20px;font-weight:800;color:#f1f5f9">🚦 Cruscotto di Controllo</div>
-      <div style="background:#14532d;color:#4ade80;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.5px">📅 LEGGI OGNI SETTIMANA</div>
+  <!-- ── Ciclo Finanziario (Yield Curve + HY) ────────────────── -->
+  <div style="background:#1e293b;border:1px solid #334155;border-left:4px solid {regime_color};border-radius:12px;padding:18px;margin-bottom:20px">
+    <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📈 Ciclo Finanziario</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+      <div style="font-size:17px;font-weight:900;color:{regime_color}">{regime_label}</div>
+      {overlay_badge}
+      {'<span style="background:#1e3a5f;color:#60a5fa;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700">⚡ RE-STEEPENING</span>' if steepening else ''}
     </div>
-    <div style="color:#64748b;font-size:13px;margin-top:6px;line-height:1.7">
-      Sintesi semaforo di {len(crusc_indicators)} indicatori macro e di sentiment. In 30 secondi capisci se il mercato è risk-on, in allerta o in modalità difensiva.
+    <div style="color:#94a3b8;font-size:13px;line-height:1.7;margin-bottom:12px">{narrative.get('description','')}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px;font-size:13px">
+      <div style="background:#0f172a;border-radius:8px;padding:10px 14px">
+        <div style="color:#64748b;font-size:11px;margin-bottom:4px">Yield Curve 10Y–2Y</div>
+        <div style="color:{('#22c55e' if (macro.get('yield_curve',{}).get('current',0) or 0)>0.3 else '#f59e0b' if (macro.get('yield_curve',{}).get('current',0) or 0)>-0.3 else '#ef4444')};font-weight:700;font-size:16px">
+          {f"{macro.get('yield_curve',{}).get('current',0):+.2f}%" if macro.get('yield_curve',{}).get('current') is not None else 'N/A'}
+        </div>
+        <div style="color:#475569;font-size:11px;margin-top:2px">{'positiva ✓' if (macro.get('yield_curve',{}).get('current',0) or 0)>0 else 'invertita ⚠️'}</div>
+      </div>
+      <div style="background:#0f172a;border-radius:8px;padding:10px 14px">
+        <div style="color:#64748b;font-size:11px;margin-bottom:4px">HY Spreads OAS</div>
+        <div style="color:{('#22c55e' if (macro.get('hy_spreads',{}).get('current',0) or 0)<3.5 else '#f59e0b' if (macro.get('hy_spreads',{}).get('current',0) or 0)<5 else '#ef4444')};font-weight:700;font-size:16px">
+          {f"{macro.get('hy_spreads',{}).get('current',0):.2f}%" if macro.get('hy_spreads',{}).get('current') is not None else 'N/A'}
+        </div>
+        <div style="color:#475569;font-size:11px;margin-top:2px">{'sereno ✓' if (macro.get('hy_spreads',{}).get('current',0) or 0)<3.5 else 'attenzione' if (macro.get('hy_spreads',{}).get('current',0) or 0)<5 else 'stress ⚠️'}</div>
+      </div>
+    </div>
+    <div style="background:#0f2744;border-left:3px solid #3b82f6;padding:10px 14px;color:#bfdbfe;font-size:13px;line-height:1.6;margin-bottom:8px;border-radius:6px">
+      <strong>📋 AZIONE:</strong> {narrative.get('action','')}
+    </div>
+    <div style="background:#0f172a;border-left:3px solid #f59e0b;padding:10px 14px;color:#fde68a;font-size:13px;line-height:1.6;border-radius:6px">
+      <strong>🛡️ COPERTURE:</strong> {hedge_txt}
     </div>
   </div>
 
-  <!-- Pannello tipologie: Regime + Overlay + Semaforo -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:22px">
-
-    <!-- Colonna 1: Regimi macro possibili -->
-    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px">
-      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📍 Regimi Macro Possibili</div>
-      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>
-          <span style="color:#22c55e;font-weight:700;width:170px">BOOM / RISK-ON</span>
-          <span style="color:#64748b">YC &gt;0.5% · HY &lt;3.5%</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;flex-shrink:0"></span>
-          <span style="color:#f59e0b;font-weight:700;width:170px">LATE CYCLE EXPANSION</span>
-          <span style="color:#64748b">YC &gt;0% · HY &lt;4%</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="width:10px;height:10px;border-radius:50%;background:#f97316;flex-shrink:0"></span>
-          <span style="color:#f97316;font-weight:700;width:170px">LATE CYCLE STRESS</span>
-          <span style="color:#64748b">YC &gt;0% · HY ≥4%</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;flex-shrink:0"></span>
-          <span style="color:#ef4444;font-weight:700;width:170px">INVERSION / WAITING</span>
-          <span style="color:#64748b">YC ≤0% · HY &lt;5%</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="width:10px;height:10px;border-radius:50%;background:#dc2626;flex-shrink:0"></span>
-          <span style="color:#dc2626;font-weight:700;width:170px">RECESSION RISK</span>
-          <span style="color:#64748b">YC ≤0% · HY ≥5%</span>
-        </div>
-      </div>
+  <!-- ── Stato operativo settori ─────────────────────────────── -->
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;overflow:hidden;margin-bottom:20px">
+    <div style="padding:12px 18px;border-bottom:1px solid #334155;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700">
+      📊 Settori SPDR — Stato Operativo · Regime: <span style="color:{regime_color}">{regime_label}</span>
     </div>
-
-    <!-- Colonna 2: Overlay sentiment -->
-    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px">
-      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">🎭 Overlay Sentiment</div>
-      <div style="display:flex;flex-direction:column;gap:10px;font-size:12px">
-        <div>
-          <div style="color:#94a3b8;font-weight:700;margin-bottom:2px">NEUTRAL</div>
-          <div style="color:#64748b;line-height:1.5">Nessun estremo rilevato. Seguire il regime macro senza aggiustamenti.</div>
-        </div>
-        <div style="border-top:1px solid #334155;padding-top:10px">
-          <div style="color:#ef4444;font-weight:700;margin-bottom:2px">⚠️ DEFENSIVE OVERLAY</div>
-          <div style="color:#64748b;line-height:1.5">≥2 estremi tra NAAIM&gt;90, SKEW≥140, VIX&lt;14. Posizionamento istituzionale saturo — ridurre esposizione.</div>
-        </div>
-        <div style="border-top:1px solid #334155;padding-top:10px">
-          <div style="color:#22c55e;font-weight:700;margin-bottom:2px">🎯 CAPITULATION OPPORTUNITY</div>
-          <div style="color:#64748b;line-height:1.5">NAAIM&lt;30. Gestori in capitolazione — storicamente segnale di entry contrarian.</div>
-        </div>
-      </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#0f172a">
+            <th style="padding:8px 12px;text-align:left;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Ticker</th>
+            <th style="padding:8px 12px;text-align:left;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Settore</th>
+            <th style="padding:8px 12px;text-align:center;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Score</th>
+            <th style="padding:8px 12px;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Segnale</th>
+            <th style="padding:8px 12px;text-align:right;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">RS 4W</th>
+            <th style="padding:8px 12px;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase">Stato Operativo</th>
+          </tr>
+        </thead>
+        <tbody style="background:#1e293b">{op_state_rows}</tbody>
+      </table>
     </div>
-
-    <!-- Colonna 3: Semaforo complessivo -->
-    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px">
-      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">🔴🟡🟢 Semaforo Complessivo</div>
-      <div style="display:flex;flex-direction:column;gap:10px;font-size:12px">
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <span style="width:14px;height:14px;border-radius:50%;background:#22c55e;flex-shrink:0;margin-top:2px"></span>
-          <div>
-            <div style="color:#22c55e;font-weight:700">VERDE — Risk-On</div>
-            <div style="color:#64748b;line-height:1.5">Maggioranza indicatori in zona positiva. Ciclo espansivo, esposizione piena consentita.</div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:flex-start;gap:10px;border-top:1px solid #334155;padding-top:10px">
-          <span style="width:14px;height:14px;border-radius:50%;background:#f59e0b;flex-shrink:0;margin-top:2px"></span>
-          <div>
-            <div style="color:#f59e0b;font-weight:700">GIALLO — Allerta</div>
-            <div style="color:#64748b;line-height:1.5">Segnali misti. Mantenere posizioni ma non aggiungere. Monitorare indicatori in zona arancio.</div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:flex-start;gap:10px;border-top:1px solid #334155;padding-top:10px">
-          <span style="width:14px;height:14px;border-radius:50%;background:#ef4444;flex-shrink:0;margin-top:2px"></span>
-          <div>
-            <div style="color:#ef4444;font-weight:700">ROSSO — Difensivo</div>
-            <div style="color:#64748b;line-height:1.5">Maggioranza indicatori in zona critica. Ridurre equity, aumentare cash e difensivi.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
   </div>
 
-  <!-- Tabella indicatori -->
-  <div class="cruscotto-detail">
+  <!-- ── Semaforo dettaglio indicatori ──────────────────────── -->
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:18px">
     <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">
-      Dettaglio {len(crusc_indicators)} Indicatori
+      🚦 Semaforo Indicatori — {crusc_overall}
+      <span style="margin-left:10px;font-weight:400;text-transform:none;letter-spacing:0">
+        <span style="color:#22c55e">● {pluralize_it(crusc_counts.get('VERDE',0),'verde','verdi')}</span>
+        <span style="color:#f59e0b;margin-left:8px">● {pluralize_it(crusc_counts.get('GIALLO',0),'giallo','gialli')}</span>
+        <span style="color:#ef4444;margin-left:8px">● {pluralize_it(crusc_counts.get('ROSSO',0),'rosso','rossi')}</span>
+      </span>
     </div>
-    <div class="crusc-table">
-      {crusc_indicators_html}
-    </div>
+    <div class="crusc-table">{crusc_indicators_html}</div>
   </div>
-</div>
+
+  <!-- Asset Watch + NAAIM -->
+  {'<div style="margin-top:16px"><div class="section-header">🌐 Asset Watch — Cross-Asset</div><div class="asset-bar">' + asset_items_html + '</div></div>' if asset_items_html else ''}
+  {naaim_html if naaim_html else ''}
+
+</div><!-- fine t-macro -->
 
 <!-- SCORING TAB -->
 <div id="t-scoring" class="tab-content">
@@ -2797,7 +2705,7 @@ tr:hover td{{background:#253047}}
 
 <script>
 // ── TABS ─────────────────────────────────────────────────────
-const TABS = ['macro','cruscotto','scoring','charts','table','cot','tematici','guide'];
+const TABS = ['macro','scoring','charts','table','cot','tematici','guide'];
 function goTab(name) {{
   TABS.forEach(id => {{
     document.querySelectorAll('.tab')[TABS.indexOf(id)].classList.toggle('active', id===name);
