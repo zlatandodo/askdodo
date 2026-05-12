@@ -729,31 +729,27 @@ def compute_scores(metrics, breadth, cot, etf_flows=None):
 def detect_quadrant(macro):
     """Identifica il quadrante macro: Goldilocks / Reflazione / Stagflazione / Deflazione.
 
-    Asse Crescita: direzione di Industrial Production YoY + LEI
-    Asse Inflazione: direzione di CPI YoY + Core PCE YoY
+    Asse Crescita:   PRIMARIO = Industrial Production YoY (dato coincidente).
+                     IP YoY > 0 → crescita. Chicago Fed e LEI sono contesto supplementare,
+                     NON votano: evitano falsi negativi quando IP è positivo.
+    Asse Inflazione: voto a maggioranza tra CPI YoY e Core PCE YoY vs soglia 2.5%.
 
     Returns dict completo con quadrante, descrizione, asset vincenti/perdenti.
     """
-    # ── Crescita: positiva se IP YoY in salita E LEI in salita ──
+    # ── Crescita: IP YoY è il segnale primario ───────────────────
     growth_up = None
-    growth_signals = []
 
     if 'indpro' in macro and macro['indpro'].get('yoy') is not None:
-        ip_yoy = macro['indpro']['yoy']
-        # IP YoY > 0 = espansione
-        growth_signals.append(ip_yoy > 0)
-    if 'lei' in macro:
-        lei_dir = macro['lei'].get('direction','FLAT')
-        growth_signals.append(lei_dir == 'UP')
-    if 'chicago_fed' in macro:
+        ip_yoy_val = macro['indpro']['yoy']
+        # IP YoY > 0 = espansione economica coincidente
+        growth_up = ip_yoy_val > 0
+    elif 'chicago_fed' in macro:
+        # Fallback su Chicago Fed solo se IP non disponibile
         cf = macro['chicago_fed'].get('current', 0)
-        # Chicago Fed Activity Index: > 0 = sopra trend
-        growth_signals.append(cf > -0.2)
+        growth_up = cf >= -0.2
+    # Nota: LEI è leading e prone a falsi negativi prolungati — non vota
 
-    if growth_signals:
-        growth_up = sum(growth_signals) > len(growth_signals)/2
-
-    # ── Inflazione: positiva se CPI YoY in salita E sopra target ──
+    # ── Inflazione: voto a maggioranza CPI + Core PCE ────────────
     inflation_up = None
     infl_signals = []
 
@@ -767,7 +763,7 @@ def detect_quadrant(macro):
         infl_signals.append(pce_yoy > 2.5)
 
     if infl_signals:
-        inflation_up = sum(infl_signals) > len(infl_signals)/2
+        inflation_up = sum(infl_signals) > len(infl_signals) / 2
 
     # ── Quadrante ───────────────────────────────────────────────
     if growth_up is None or inflation_up is None:
