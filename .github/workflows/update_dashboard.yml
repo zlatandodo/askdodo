@@ -1,0 +1,49 @@
+name: Weekly Sector Rotation Dashboard
+
+on:
+  schedule:
+    # Ogni sabato alle 06:00 UTC (08:00 ora italiana estate / 07:00 inverno)
+    - cron: '0 6 * * 6'
+  workflow_dispatch:
+    # Permette avvio manuale da GitHub Actions
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate dashboard
+        env:
+          FRED_API_KEY:    ${{ secrets.FRED_API_KEY }}
+          EMAIL_SENDER:    ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD:  ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO:        ${{ secrets.EMAIL_TO }}
+          DASHBOARD_URL:   ${{ secrets.DASHBOARD_URL }}
+        run: |
+          python sector_rotation.py \
+            --output docs/index.html \
+            --email \
+            --url "$DASHBOARD_URL"
+
+      - name: Commit updated dashboard
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git diff --staged --quiet || git commit -m "dashboard: aggiornamento settimanale $(date +'%Y-%m-%d')"
+          git push

@@ -6,10 +6,6 @@ credentials.json
 # Output e log locali
 output/
 logs/
-__pycache__/
-*.pyc
-*.pyo
-.DS_Store
 
 # Database locale
 db/
@@ -18,6 +14,7 @@ db/
 *.tmp
 *.bak
 .tmp/
+*.log
 
 # Input files locali
 input/
@@ -29,3 +26,14 @@ input/
 venv/
 .venv/
 env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# Test output
+test_output.html
