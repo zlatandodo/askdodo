@@ -7,8 +7,9 @@ credentials.json
 output/
 logs/
 
-# Database locale
+# Database locale (escludi tutto tranne la focus list che serve ai workflow)
 db/
+!db/momentum_focus_list.json
 
 # File temporanei
 *.tmp

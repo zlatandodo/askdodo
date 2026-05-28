@@ -1,0 +1,52 @@
+name: ⚡ Breakout Alert (Lun-Ven 22:30 IT)
+
+on:
+  schedule:
+    # 20:30 UTC = 22:30 CEST (estate) / 21:30 CET (inverno)
+    # Diverso dal Gap Up (21:30 UTC) per non sovraccaricare e per chiarezza
+    - cron: '30 20 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  run-breakout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env from secrets
+        run: |
+          echo "GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}" >> .env
+          echo "EMAIL_SENDER=${{ secrets.EMAIL_SENDER }}"             >> .env
+          echo "EMAIL_RECIPIENT=${{ secrets.EMAIL_RECIPIENT }}"       >> .env
+
+      - name: Check focus list exists
+        id: check_focus
+        run: |
+          if [ -f "db/momentum_focus_list.json" ]; then
+            COUNT=$(python -c "import json; d=json.load(open('db/momentum_focus_list.json')); print(len(d))")
+            echo "Focus list trovata: $COUNT ticker"
+            echo "has_list=true" >> $GITHUB_OUTPUT
+          else
+            echo "Focus list NON trovata — momentum_weekly non è ancora girato questa settimana."
+            echo "has_list=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Breakout Alert
+        if: steps.check_focus.outputs.has_list == 'true'
+        run: python breakout_alert.py
+
+      - name: Skip message
+        if: steps.check_focus.outputs.has_list == 'false'
+        run: echo "Nessuna focus list disponibile. Nessun alert inviato."
