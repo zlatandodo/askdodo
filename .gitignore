@@ -1,0 +1,31 @@
+# Credenziali — mai in git
+.env
+token.json
+credentials.json
+
+# Output e log locali
+output/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# Database locale
+db/
+
+# File temporanei
+*.tmp
+*.bak
+.tmp/
+
+# Input files locali
+input/
+
+# Plist locali (solo per macOS launchd)
+*.plist
+
+# Virtual env
+venv/
+.venv/
+env/

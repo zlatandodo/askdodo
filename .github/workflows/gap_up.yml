@@ -1,0 +1,42 @@
+name: 📊 Gap Up Scanner (Lun-Ven 23:30 IT)
+
+on:
+  schedule:
+    # 21:30 UTC = 23:30 CEST (ora italiana estate) / 22:30 CET (inverno)
+    - cron: '30 21 * * 1-5'
+  workflow_dispatch:   # permette lancio manuale dal browser GitHub
+
+jobs:
+  run-gap-up:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env from secrets
+        run: |
+          echo "GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}" >> .env
+          echo "EMAIL_SENDER=${{ secrets.EMAIL_SENDER }}"             >> .env
+          echo "EMAIL_RECIPIENT=${{ secrets.EMAIL_RECIPIENT }}"       >> .env
+
+      - name: Run Gap Up Scanner
+        run: python gap_up_daily.py
+
+      - name: Upload output (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gap-up-output-${{ github.run_id }}
+          path: output/
+          retention-days: 7

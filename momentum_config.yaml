@@ -1,0 +1,72 @@
+capital_usd: 100000
+risk_per_trade_pct: 0.0075
+max_position_pct:
+  tier_a: 0.05
+  tier_b: 0.035
+  hard_cap: 0.06
+
+# Momentum scanner parameters
+momentum:
+  # Stock filters
+  price_min: 5
+  market_cap_min_m: 300
+  avg_vol_min: 500000
+  adr_min_pct: 2.0          # Average Daily Range > 2%
+
+  # Base detection
+  base_days: 20             # days to measure consolidation
+  base_range_max_pct: 12.0  # max high-low range in base (tight = coiled)
+  prior_days: 40            # lookback for prior momentum move
+  prior_move_min_pct: 10.0  # minimum prior move before base
+
+  # Volume contraction
+  vol_contraction_max: 0.90  # base vol must be < 90% of prior vol
+
+  # EMA alignment (must be above all)
+  require_ema_alignment: true  # price > EMA8 > EMA21 > EMA50
+
+  # Breakout detection (used by breakout_alert.py)
+  breakout_vol_multiplier: 1.05 # volume >= 1.05x media base (+5%)
+  breakout_min_pct: 1.0         # chiusura almeno +1% sopra il max 20gg
+
+  # Output
+  focus_list_size: 200      # nessun limite pratico
+  max_per_sector: 200       # nessun cap settoriale
+
+# Recent Doublers scanner parameters
+recent_doublers:
+  min_price:       5.0    # prezzo minimo
+  min_vol_avg:  200000    # volume medio 50gg minimo
+  min_rs_rating:    0     # RS Rating minimo — 0 = nessun filtro (come AskLivermore)
+  max_dist_52w_pct: 999.0 # distanza massima dal 52w high — 999 = nessun filtro (come AskLivermore)
+
+# Gap Up scanner parameters (Buyable Gap Up — logica AskLivermore v3)
+# NOTA: nessun filtro RS Rating o base pattern — replica la logica reale di AskLivermore
+gap_up:
+  min_gap_pct:    3.0   # gap minimo % (open vs prev_close)
+  max_gap_pct:   50.0   # esclude solo gap assurdi (>50%)
+  min_rvol:       1.5   # RVOL minimo sul gap day
+  min_vol_avg:  200000  # volume medio 20gg minimo in azioni (liquidità minima)
+  lookback_days:  10    # giorni a ritroso per cercare il gap event
+
+trade_plan:
+  atr_stop_multiplier: 1.5
+  atr_target1_multiplier: 2.0
+  atr_target2_multiplier: 5.0
+  max_stop_pct: 0.10
+
+email:
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  subject_template: "🚀 Momentum Focus List - {date} - {n} setup"
+
+scheduling:
+  day_of_week: saturday
+  hour: 7
+  minute: 0
+  timezone: Europe/Rome
+
+logging:
+  max_bytes: 10485760
+  backup_count: 5
+  level: INFO

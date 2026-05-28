@@ -1,0 +1,49 @@
+capital_usd: 100000
+risk_per_trade_pct: 0.0075
+max_position_pct:
+  tier_a: 0.05
+  tier_b: 0.035
+  hard_cap: 0.06
+
+filters:
+  market_cap_min_m: 300
+  price_min: 10
+  price_max: 600
+  avg_vol_min: 400000        # 50-day average volume minimum (from yfinance)
+  earnings_days_buffer: 5
+  rsi14_min: 30              # exclude oversold/broken stocks
+  rsi14_max: 70              # exclude overbought stocks
+  dist_52w_high_min: -0.30   # no more than 30% below ATH (avoid broken stocks)
+  dist_52w_high_max: -0.03   # must be at least 3% below ATH (avoid ATH stocks)
+  require_sector: true       # exclude ETFs and instruments with no GICS sector
+  max_per_sector: 3          # max tickers per GICS sector in final watchlist
+  watchlist_size: 15         # max tickers in final watchlist
+
+trade_plan:
+  atr_stop_multiplier: 1.5
+  atr_target1_multiplier: 2.0
+  atr_target2_multiplier: 5.0
+  max_stop_pct: 0.10
+
+# The 4 scanners we cross-reference — stocks appearing in more scanners rank higher
+scanners:
+  - {name: golden_pocket,        slug: golden-pocket}
+  - {name: vcp,                  slug: vcp}
+  - {name: livermore_buy_the_dip, slug: livermore-buy-the-dip}
+  - {name: pocket_pivot,         slug: pocket-pivot}
+
+email:
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  subject_template: "📊 AskLivermore Watchlist - {date} - {n} ticker (esposizione {exposure_pct}%)"
+
+scheduling:
+  day_of_week: saturday
+  hour: 6
+  minute: 0
+  timezone: Europe/Rome
+
+logging:
+  max_bytes: 10485760
+  backup_count: 5
+  level: INFO

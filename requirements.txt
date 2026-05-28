@@ -1,0 +1,9 @@
+pandas>=2.0
+numpy>=1.24
+PyYAML>=6.0
+openpyxl>=3.1
+yfinance>=0.2.40
+playwright>=1.44
+python-dotenv>=1.0
+jinja2>=3.1
+pytz>=2024.1
