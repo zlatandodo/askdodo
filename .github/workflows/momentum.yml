@@ -43,7 +43,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p db
-          git add db/momentum_focus_list.json
+          git add -f db/momentum_focus_list.json
           git diff --staged --quiet || git commit -m "feat(momentum): update focus list $(date -u +%Y-%m-%d)"
           git push
 
