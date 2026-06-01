@@ -86,7 +86,7 @@ def generate_gap_up_html(results: list[dict], run_date: str,
     rows_html = ""
     for r in results:
         tv_url  = f"https://www.tradingview.com/chart/?symbol={r['ticker']}"
-        tv_link = f'<a href="{tv_url}" target="_blank" style="color:#3b82f6;text-decoration:none;">📈</a>'
+        tv_link = f'<a href="{tv_url}" target="_blank" style="color:#3b82f6;text-decoration:none;font-weight:700;">{r["ticker"]} ↗</a>'
 
         rvol_color = _rvol_color(r["rvol"])
         trend_icon = _trend_icon(r["above_sma50"], r["above_sma200"])
@@ -112,7 +112,7 @@ def generate_gap_up_html(results: list[dict], run_date: str,
           <td style="text-align:center;font-weight:700;color:#1e293b;">{r['gap_score']}</td>
           <td style="text-align:center;">{_days_badge(r['gap_days_ago'])}</td>
           <td>
-            <div style="font-weight:700;color:#0f172a;">{r['ticker']} {tv_link}</div>
+            <div>{tv_link}</div>
             <div style="font-size:11px;color:#64748b;">{r['name'][:28]}</div>
           </td>
           <td style="font-size:11px;color:#64748b;">{r['sector']}</td>

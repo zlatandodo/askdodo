@@ -78,7 +78,7 @@ def generate_recent_doublers_html(results: list[dict], run_date: str,
     rows_html = ""
     for r in results:
         tv_url  = f"https://www.tradingview.com/chart/?symbol={r['ticker']}"
-        tv_link = f'<a href="{tv_url}" target="_blank" style="color:#3b82f6;text-decoration:none;">📈</a>'
+        tv_link = f'<a href="{tv_url}" target="_blank" style="color:#3b82f6;text-decoration:none;font-weight:700;">{r["ticker"]} ↗</a>'
         mc_b    = r["market_cap_m"] / 1000 if r["market_cap_m"] else 0
         mc_str  = f"${mc_b:.1f}B" if mc_b >= 1 else f"${r['market_cap_m']:.0f}M"
         sma_icon = "✅" if r["above_sma50"] else "❌"
@@ -90,7 +90,7 @@ def generate_recent_doublers_html(results: list[dict], run_date: str,
           <td style="text-align:center;">{_speed_badge(r['fastest_tf'])}</td>
           <td style="text-align:center;">{_rs_badge(r['rs_rating'])}</td>
           <td>
-            <div style="font-weight:700;color:#0f172a;">{r['ticker']} {tv_link}</div>
+            <div>{tv_link}</div>
             <div style="font-size:11px;color:#64748b;">{r['name'][:28]}</div>
           </td>
           <td style="font-size:11px;color:#64748b;">{r['sector']}</td>

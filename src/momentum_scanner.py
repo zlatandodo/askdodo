@@ -263,43 +263,54 @@ def scan_momentum(
 
 def enrich_with_fundamentals(focus_list: list[dict], hist_data: dict) -> list[dict]:
     """
-    Add company description, revenue, and last-week volume to each candidate.
-    Fetches yfinance .info for each ticker (only the focus list — max 10 tickers).
+    Add company description, revenue, market cap and last-week volume to each candidate.
+    Una sola chiamata .info per ticker (contiene tutto: desc, rev, market cap).
+    Retry automatico + sleep tra ticker per evitare rate limiting yfinance.
     """
+    import time
     import yfinance as yf
 
     enriched = []
     for c in focus_list:
-        sym = c["symbol"]
+        sym         = c["symbol"]
         description = None
         revenue_b   = None
-        vol_week    = None
+        market_cap_m = c.get("market_cap_m")  # mantieni se già presente
 
-        # Market cap via fast_info (endpoint leggero, non rate-limited)
-        try:
-            mc = yf.Ticker(sym).fast_info.market_cap
-            c["market_cap_m"] = round(mc / 1_000_000) if mc else None
-        except Exception:
-            c["market_cap_m"] = None
+        # Unica chiamata .info — contiene longBusinessSummary, totalRevenue, marketCap
+        info = {}
+        for attempt in range(3):
+            try:
+                info = yf.Ticker(sym).info
+                if info.get("longBusinessSummary") or info.get("marketCap"):
+                    break  # risposta valida
+            except Exception as e:
+                log.warning(f"[{sym}] .info attempt {attempt+1}/3 failed: {e}")
+            time.sleep(15)  # rate limit yfinance: aspetta 15s tra tentativi
 
-        try:
-            info = yf.Ticker(sym).info
-
-            # Company description — first 2 sentences, max 300 chars
+        if info:
+            # Descrizione — prime 2 frasi, max 320 caratteri
             bio = info.get("longBusinessSummary") or ""
-            sentences = [s.strip() for s in bio.split(".") if s.strip()]
-            desc_raw = ". ".join(sentences[:2]) + "." if sentences else ""
-            description = desc_raw[:320] if desc_raw else None
+            if bio:
+                sentences = [s.strip() for s in bio.split(".") if s.strip()]
+                desc_raw  = ". ".join(sentences[:2]) + "."
+                description = desc_raw[:320]
 
-            # Revenue (totalRevenue in USD → billions)
+            # Revenue
             rev = info.get("totalRevenue")
             if rev:
                 revenue_b = round(rev / 1e9, 1)
 
-        except Exception as e:
-            log.debug(f"[{sym}] fundamentals fetch error: {e}")
+            # Market cap
+            mc = info.get("marketCap")
+            if mc:
+                market_cap_m = round(mc / 1_000_000)
 
-        # Last week volume from hist_data (last 5 trading days)
+        if not description:
+            log.warning(f"[{sym}] descrizione non ottenuta da yfinance")
+
+        # Volume settimana (dai dati storici già scaricati)
+        vol_week = None
         try:
             h = hist_data.get(sym)
             if h is not None and len(h) >= 5:
@@ -309,11 +320,13 @@ def enrich_with_fundamentals(focus_list: list[dict], hist_data: dict) -> list[di
 
         enriched.append({
             **c,
-            "description": description,
-            "revenue_b":   revenue_b,
-            "vol_week":    vol_week,
+            "description":  description,
+            "revenue_b":    revenue_b,
+            "market_cap_m": market_cap_m,
+            "vol_week":     vol_week,
         })
-        log.debug(f"[{sym}] enriched — rev=${revenue_b}B | vol_week={vol_week}")
+        log.info(f"[{sym}] enriched — desc={'✓' if description else '✗'} rev=${revenue_b}B mcap=${market_cap_m}M")
+        time.sleep(0.5)  # pausa tra ticker per non hammering yfinance
 
     log.info(f"Fundamentals enriched: {len(enriched)} tickers")
     return enriched

@@ -36,7 +36,7 @@ momentum:
 # Recent Doublers scanner parameters
 recent_doublers:
   min_price:       5.0    # prezzo minimo
-  min_vol_avg:  200000    # volume medio 50gg minimo
+  min_vol_avg:  500000    # volume medio 50gg minimo
   min_rs_rating:    0     # RS Rating minimo — 0 = nessun filtro (come AskLivermore)
   max_dist_52w_pct: 999.0 # distanza massima dal 52w high — 999 = nessun filtro (come AskLivermore)
 

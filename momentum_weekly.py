@@ -154,6 +154,10 @@ def main() -> int:
             return 0
 
         # ── 6. Enrich with fundamentals (description, revenue, last week vol) ─
+        # Pausa 60s: il download di 1500 ticker esaurisce il rate limit yfinance.
+        # .info richiede un endpoint diverso — aspettiamo che si resetti.
+        log.info("Pausa 90s prima dell'enrich (rate limit yfinance post-bulk-download)...")
+        time.sleep(90)
         with step(log, "Fundamentals enrichment"):
             focus_list = enrich_with_fundamentals(focus_list, hist_data)
 
