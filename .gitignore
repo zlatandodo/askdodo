@@ -38,3 +38,4 @@ __pycache__/
 
 # Test output
 test_output.html
+.yf_cache/

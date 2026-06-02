@@ -27,6 +27,12 @@ FOCUS_LIST_PATH  = BASE_DIR / "db" / "momentum_focus_list.json"
 
 sys.path.insert(0, str(BASE_DIR))
 
+# Fix per launchd: yfinance cache in percorso esplicito (evita OperationalError SQLite)
+import yfinance as yf
+_YF_CACHE = BASE_DIR / ".yf_cache"
+_YF_CACHE.mkdir(exist_ok=True)
+yf.set_tz_cache_location(str(_YF_CACHE))
+
 
 def setup_logging(config: dict) -> logging.Logger:
     log_cfg = config.get("logging", {})
